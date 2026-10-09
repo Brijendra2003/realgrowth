@@ -1,0 +1,264 @@
+@import "tailwindcss";
+
+/* ───────────────────────── Real Growth design tokens ───────────────────────── */
+
+@theme {
+  /* Brand (from the logo) */
+  --color-brand-green: #0b5d4b;
+  --color-brand-green-700: #084a3c;
+  --color-brand-green-900: #053329;
+  --color-brand-green-50: #e7f1ed;
+  --color-brand-green-100: #d0e4dc;
+  --color-brand-gold: #e5a913;
+  --color-brand-gold-600: #c28c0a;
+  --color-brand-gold-50: #fdf4dc;
+  --color-brand-cream: #ffdfa0;
+
+  /* Neutrals — warm paper, like the references */
+  --color-ink: #17201d;
+  --color-ink-soft: #3c4a45;
+  --color-muted: #6b7772;
+  --color-line: #e9e0cd;
+  --color-line-soft: #f1ebde;
+  --color-paper: #fffdf8;
+  --color-canvas: #fbf6ec;
+  --color-sand: #f5ecd9;
+  --color-sage: #dfe9e1;
+  --color-clay: #c8643b;
+  --color-clay-50: #fbeae2;
+
+  /* Status */
+  --color-success: #1e7a4f;
+  --color-warning: #b7791f;
+  --color-danger: #b42318;
+  --color-info: #1d5fa6;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter-tight), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.375rem;
+  --radius-3xl: 2rem;
+
+  --shadow-card: 0 1px 2px rgb(23 32 29 / 0.04), 0 8px 24px -12px rgb(23 32 29 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(23 32 29 / 0.05), 0 22px 44px -18px rgb(11 93 75 / 0.28);
+  --shadow-pop: 0 18px 60px -20px rgb(5 51 41 / 0.45);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 0.7s var(--ease-out-soft) both;
+  --animate-float: float 7s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(-2deg); }
+}
+
+/* ───────────────────────── Base ───────────────────────── */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+  ::selection {
+    background: var(--color-brand-cream);
+    color: var(--color-brand-green-900);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-gold);
+    outline-offset: 2px;
+  }
+}
+
+/* ───────────────────────── Components ───────────────────────── */
+
+@layer components {
+  .container-page {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+  @media (min-width: 640px) { .container-page { padding-inline: 1.5rem; } }
+  @media (min-width: 1024px) { .container-page { padding-inline: 2rem; } }
+
+  /* Section eyebrow — small gold caps, as in the references */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-clay);
+  }
+
+  .accent-serif {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.925rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: background-color 0.2s, color 0.2s, box-shadow 0.25s var(--ease-out-soft), transform 0.25s var(--ease-out-soft), border-color 0.2s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.55; pointer-events: none; }
+  .btn-primary {
+    background: var(--color-brand-green);
+    color: #fff;
+    box-shadow: 0 8px 20px -10px rgb(11 93 75 / 0.7);
+  }
+  .btn-primary:hover { background: var(--color-brand-green-700); box-shadow: var(--shadow-lift); }
+  .btn-gold {
+    background: var(--color-brand-gold);
+    color: var(--color-brand-green-900);
+  }
+  .btn-gold:hover { background: #f0b623; box-shadow: 0 12px 28px -12px rgb(229 169 19 / 0.8); }
+  .btn-outline {
+    background: transparent;
+    color: var(--color-brand-green);
+    border: 1.5px solid color-mix(in oklab, var(--color-brand-green) 35%, transparent);
+  }
+  .btn-outline:hover { border-color: var(--color-brand-green); background: var(--color-brand-green-50); }
+  .btn-ghost { color: var(--color-ink-soft); }
+  .btn-ghost:hover { background: var(--color-sand); color: var(--color-ink); }
+  .btn-danger { background: var(--color-danger); color: #fff; }
+  .btn-danger:hover { background: #912018; }
+  .btn-sm { min-height: 2.25rem; padding: 0.4rem 0.9rem; font-size: 0.85rem; }
+  .btn-lg { min-height: 3.25rem; padding: 0.85rem 1.6rem; font-size: 1rem; }
+
+  /* Cards */
+  .card {
+    background: var(--color-paper);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Form fields — labels above, big tap targets */
+  .label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+  .hint { margin-top: 0.35rem; font-size: 0.8rem; color: var(--color-muted); }
+  .field-error { margin-top: 0.35rem; font-size: 0.8rem; font-weight: 500; color: var(--color-danger); }
+  .input {
+    width: 100%;
+    min-height: 2.9rem;
+    padding: 0.65rem 0.95rem;
+    border-radius: 0.85rem;
+    border: 1.5px solid var(--color-line);
+    background: #fff;
+    color: var(--color-ink);
+    font-size: 0.95rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input::placeholder { color: #a3aca8; }
+  .input:hover { border-color: #d9cdb2; }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-brand-green);
+    box-shadow: 0 0 0 4px rgb(11 93 75 / 0.12);
+  }
+  .input[aria-invalid="true"] { border-color: var(--color-danger); }
+  select.input {
+    appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7772' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.9rem center;
+  }
+  textarea.input { min-height: 7rem; resize: vertical; }
+
+  /* Chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  /* Tables in dashboards */
+  .table-clean { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+  .table-clean th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    padding: 0.75rem 1rem;
+    background: var(--color-canvas);
+    border-bottom: 1px solid var(--color-line);
+  }
+  .table-clean td { padding: 0.85rem 1rem; border-bottom: 1px solid var(--color-line-soft); vertical-align: middle; }
+  .table-clean tr:last-child td { border-bottom: 0; }
+  .table-clean tbody tr:hover td { background: #fffaf0; }
+
+  /* Subtle paper grain for hero/feature bands */
+  .grain {
+    background-image: radial-gradient(rgb(23 32 29 / 0.035) 1px, transparent 1px);
+    background-size: 3px 3px;
+  }
+
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1.5px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.3s var(--ease-out-soft);
+  }
+  .link-underline:hover { background-size: 100% 1.5px; }
+
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
