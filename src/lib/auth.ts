@@ -5,15 +5,23 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { isLister, isStaff, type UserRole } from "./constants";
-import { readDb } from "./db";
-import type { SessionUser } from "./types";
+import { row, sb } from "./supabase";
+import type { Profile, SessionUser } from "./types";
 
 export const SESSION_COOKIE = "rg_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
-const SECRET = process.env.SESSION_SECRET ?? "dev-only-secret-change-me-in-env-local";
+
+/** Signs the session cookie. There is no fallback: a guessable secret would let anyone forge a session. */
+function secret(): string {
+  const s = process.env.SESSION_SECRET;
+  if (!s || s.length < 32) {
+    throw new Error('SESSION_SECRET is missing or too short. Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  }
+  return s;
+}
 
 function sign(payload: string) {
-  return createHmac("sha256", SECRET).update(payload).digest("base64url");
+  return createHmac("sha256", secret()).update(payload).digest("base64url");
 }
 
 export function createSessionToken(userId: string): string {
@@ -30,7 +38,7 @@ function readSessionToken(token: string | undefined): string | null {
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
     const { uid, exp } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { uid: string; exp: number };
-    return exp > Date.now() ? uid : null;
+    return exp > Date.now() && /^[0-9a-f-]{36}$/i.test(uid) ? uid : null;
   } catch {
     return null;
   }
@@ -55,8 +63,10 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   await connection(); // the expiry check reads the clock, so this is always request-time
   const uid = readSessionToken((await cookies()).get(SESSION_COOKIE)?.value);
   if (!uid) return null;
-  const db = await readDb();
-  const p = db.profiles.find((x) => x.id === uid);
+  const db = await sb();
+  const p = row<Pick<Profile, "id" | "role" | "full_name" | "phone" | "email" | "company_name" | "agent_rera_no" | "is_blocked">>(
+    await db.from("profiles").select("id,role,full_name,phone,email,company_name,agent_rera_no,is_blocked").eq("id", uid).maybeSingle(),
+  );
   if (!p || p.is_blocked) return null;
   return {
     id: p.id,

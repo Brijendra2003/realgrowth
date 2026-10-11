@@ -33,6 +33,7 @@ export type ProjectMedia = {
   url: string;
   kind: "image" | "video" | "brochure";
   sort_order: number;
+  cloudinary_public_id?: string | null;
 };
 
 export type Project = {
@@ -69,7 +70,7 @@ export type Lead = {
   id: string;
   project_id: string;
   lister_id: string;
-  buyer_id: string;
+  buyer_id: string | null; // null when the enquiry came from a visitor without an account
   name: string;
   phone: string;
   email: string | null;
@@ -86,7 +87,7 @@ export type Lead = {
 export type LeadActivity = {
   id: string;
   lead_id: string;
-  actor_id: string;
+  actor_id: string | null;
   type: "created" | "stage_change" | "note" | "call" | "site_visit" | "followup";
   from_stage: LeadStage | null;
   to_stage: LeadStage | null;
@@ -97,7 +98,7 @@ export type LeadActivity = {
 export type ProjectReview = {
   id: string;
   project_id: string;
-  reviewer_id: string;
+  reviewer_id: string | null;
   decision: "verified" | "rejected";
   reason: string | null;
   created_at: string;
@@ -119,22 +120,9 @@ export type ActivityLog = {
   actor_role: UserRole | null;
   action: string;
   entity_type: string;
-  entity_id: string | null;
+  entity_id: string | null; // uuid, or an area id
   metadata: Record<string, unknown>;
   created_at: string;
-};
-
-export type Database = {
-  profiles: Profile[];
-  areas: Area[];
-  property_types: PropertyType[];
-  projects: Project[];
-  leads: Lead[];
-  lead_activities: LeadActivity[];
-  project_reviews: ProjectReview[];
-  notifications: Notification[];
-  activity_log: ActivityLog[];
-  saved: { user_id: string; project_id: string; created_at: string }[];
 };
 
 /** What the client is allowed to see about the signed-in user. */

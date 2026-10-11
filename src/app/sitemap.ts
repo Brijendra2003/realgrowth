@@ -1,13 +1,10 @@
 import type { MetadataRoute } from "next";
-import { readDb } from "@/lib/db";
+import { getLiveProjectSlugs } from "@/lib/queries";
 
-const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const db = await readDb();
   const statics = ["", "/projects", "/about", "/contact", "/privacy", "/terms"].map((p) => ({ url: `${base}${p}` }));
-  const projects = db.projects
-    .filter((p) => p.status === "verified")
-    .map((p) => ({ url: `${base}/projects/${p.slug}`, lastModified: p.updated_at, changeFrequency: "weekly" as const }));
+  const projects = (await getLiveProjectSlugs()).map((p) => ({ url: `${base}/projects/${p.slug}`, lastModified: p.updated_at, changeFrequency: "weekly" as const }));
   return [...statics, ...projects];
 }

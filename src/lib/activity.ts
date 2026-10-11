@@ -1,32 +1,31 @@
 import "server-only";
 import type { UserRole } from "./constants";
-import { nowIso, uid } from "./db";
-import type { Database } from "./types";
+import { sb } from "./supabase";
 
 /**
  * Single audit helper called by every server action (Architecture §12).
- * Runs inside a `mutate()` callback so the log entry commits with the change.
+ * Best effort: a failed log line must not undo the action it describes.
  */
-export function logActivity(
-  db: Database,
+export async function logActivity(
   actor: { id: string; role: UserRole } | null,
   action: string,
   entity: { type: string; id: string | null },
   metadata: Record<string, unknown> = {},
 ) {
-  const id = (db.activity_log.at(-1)?.id ?? 0) + 1;
-  db.activity_log.push({
-    id,
+  const db = await sb();
+  const { error } = await db.from("activity_log").insert({
     actor_id: actor?.id ?? null,
     actor_role: actor?.role ?? null,
     action,
     entity_type: entity.type,
     entity_id: entity.id,
     metadata,
-    created_at: nowIso(),
   });
+  if (error) console.error(`[activity] could not log ${action}: ${error.message}`);
 }
 
-export function notify(db: Database, userId: string, title: string, body: string, link: string | null = null) {
-  db.notifications.push({ id: uid(), user_id: userId, title, body, link, read_at: null, created_at: nowIso() });
+export async function notify(userId: string, title: string, body: string, link: string | null = null) {
+  const db = await sb();
+  const { error } = await db.from("notifications").insert({ user_id: userId, title, body, link });
+  if (error) console.error(`[notify] ${error.message}`);
 }

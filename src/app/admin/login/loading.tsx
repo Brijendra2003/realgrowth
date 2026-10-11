@@ -1,5 +1,5 @@
-import { AuthSkeleton } from "@/components/ui/skeletons";
+import { LoadingPanel } from "@/components/ui/loader";
 
 export default function Loading() {
-  return <AuthSkeleton />;
+  return <LoadingPanel label="Just a moment…" className="min-h-screen" />;
 }

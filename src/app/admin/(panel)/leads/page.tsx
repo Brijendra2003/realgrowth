@@ -39,7 +39,7 @@ export default async function AdminLeadsPage({ searchParams }: PageProps<"/admin
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (
-            <article key={`${g.lister.id}-${g.buyer_id}`} className={`card p-4 ${g.priority === "high" ? "ring-2 ring-clay/30" : ""}`}>
+            <article key={g.key} className={`card p-4 ${g.priority === "high" ? "ring-2 ring-clay/30" : ""}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{g.name}</p>
                 <span className="text-xs text-muted">+91 {g.phone}</span>

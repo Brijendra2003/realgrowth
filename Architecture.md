@@ -27,9 +27,9 @@ Similar in spirit to MagicBricks / 99acres, but deliberately narrow (one corrido
 | `developer` | I'm a developer | Yes | Yes |
 | `owner` | I own a property to list | Yes | Yes |
 | `broker` | I'm a broker / channel partner | Yes | Yes |
-| `buyer` | I'm looking to buy or rent | No | Yes |
+| (visitor) | No sign-up. Buyers and tenants enquire without an account | No | Yes |
 
-Listers (`developer`, `owner`, `broker`) also get a **Leads dashboard**. A buyer only sees the projects they enquired on.
+Listers (`developer`, `owner`, `broker`) also get a **Leads dashboard**. Buyers do not register: an enquiry only needs a name and mobile number, and a visitor is recognised by that number. The `buyer` role remains in the schema only for accounts created before this change.
 
 ### 2.2 Website team (created by Super Admin only)
 
@@ -71,7 +71,7 @@ Ops / Admin reviews  ──►  Verified  ──►  appears on Home + Search
       │                        │
       │                        └──► Rejected (with reason, lister can fix and resubmit)
       ▼
-Buyer browses → opens project → submits enquiry form (login required)
+Buyer browses → opens project → submits enquiry form (no login needed)
       │
       ▼
 Lead is created for that project, owned by the lister
@@ -96,7 +96,7 @@ Lister works the lead:
 
 ### 3.3 Enquiry and lead flow
 
-1. Buyer opens a verified project and fills the **Enquiry form** (name, phone, message — prefilled from profile when signed in).
+1. Buyer opens a verified project and fills the **Enquiry form** (name, phone, message). No account is needed.
 2. A `lead` is created and linked to the project and the lister.
 3. Lister gets an in-app notification (email / WhatsApp later).
 4. Lister opens **Leads**, calls the buyer, and moves the lead through stages.
@@ -105,7 +105,7 @@ Lister works the lead:
 
 ### 3.4 Repeat-enquiry rule (2+ projects, same lister)
 
-If one buyer submits enquiries for **two or more projects of the same lister**, the system groups them:
+If one buyer (same account, or same mobile number for visitors) submits enquiries for **two or more projects of the same lister**, the system groups them:
 
 - **Lister's view:** one buyer card with a "Repeat enquirer — N projects" badge, listing every project the buyer enquired about, with the latest first. Priority is raised automatically.
 - **Ops/Admin view:** same grouping, plus a flag in the activity feed.
@@ -155,11 +155,11 @@ If one buyer submits enquiries for **two or more projects of the same lister**, 
 | Framework | **Next.js** (App Router) | Server Components for SEO pages, Server Actions for forms. |
 | Language | **TypeScript** | Strict mode. |
 | Styling | **Tailwind CSS** | Design tokens in `tailwind.config.ts`. |
-| Database | **Supabase (PostgreSQL)** | Row Level Security on every table. |
-| Auth | **Supabase Auth** | Phone OTP + email/password. See 7. |
-| Media | **Cloudinary** | Signed uploads from the browser; transformations for thumbnails. |
+| Database | **Supabase (PostgreSQL)** | Reached only from the server with the service role key. Row Level Security on every table, with no policies. |
+| Auth | **Own accounts** | Mobile number + scrypt password hash in `profiles`, signed http-only session cookie. OTP sign-in waits on an SMS provider. See 7. |
+| Media | **Cloudinary** | Signed uploads from the browser into a per-lister folder. |
 | Validation | Zod | Shared between forms and server actions. |
-| Forms | React Hook Form | |
+| Bot protection | **Cloudflare Turnstile** | Sign-in, sign-up and enquiry forms, plus database-backed rate limits. |
 | Hosting | Vercel | |
 
 ---
@@ -187,7 +187,7 @@ If one buyer submits enquiries for **two or more projects of the same lister**, 
 | `ink` | Near black | Body text on light |
 | `surface` | White / soft grey | Cards and page background |
 
-Logo: oval badge with a house held between two hands, wordmark **REAL GROWTH**, tagline **REAL ESTATE AGENT**. Store as SVG in `public/brand/`.
+Logo: circular emblem with a house held between two hands, wordmark **REAL GROWTH**, tagline **REAL ESTATE AGENT**. Stored in `public/brand/` as `emblem.png` (on its green disc, for light backgrounds) and `emblem-line.png` (transparent, for green backgrounds).
 
 ### UX rules (low technical knowledge)
 
@@ -202,16 +202,15 @@ Logo: oval badge with a house held between two hands, wordmark **REAL GROWTH**, 
 
 ## 7. Authentication and Onboarding
 
-1. **Sign up** asks for: name, mobile number (OTP), email (optional), and **role** via four large cards:
+1. **Sign up** asks for: name, mobile number (OTP), email (optional), and **role** via three large cards (listers only):
    - I'm a developer
    - I own a property to list
    - I'm a broker / channel partner
-   - I'm looking to buy or rent
 2. A profile row is created in `profiles` with that role.
 3. Developers and brokers are asked (optionally at first) for company name and RERA agent number; owners need nothing extra.
 4. **Sign in** works with OTP or password.
 5. Staff accounts are created by the super admin and sign in at `/admin/login`.
-6. Listing and enquiring both require being signed in; the redirect brings the user back to where they were.
+6. Listing requires being signed in; the redirect brings the user back to where they were. Enquiring does not.
 
 ---
 
@@ -351,7 +350,9 @@ A database trigger on `leads` insert updates `is_repeat` for all that buyer's le
 
 ## 10. Security (Row Level Security)
 
-All tables have RLS **on**. Staff role is read from `profiles.role` through a `security definer` helper `auth_role()`.
+> **As built:** the browser never talks to Supabase. All tables have RLS **on** with **no policies**, and privileges are revoked from the `anon` and `authenticated` roles (`0002_server_side_access.sql`). The rules in the table below are enforced in `src/lib/queries.ts` and the server actions, which check the signed-in user's role and row ownership on every call.
+
+The access rules:
 
 | Table | Public / anon | Owner of row | Staff |
 |---|---|---|---|
@@ -461,14 +462,18 @@ A single `logActivity(actor, action, entity, metadata)` helper is called by ever
 
 ## 13. Environment Variables
 
+See `.env.example` for the full list with explanations.
+
 ```
+SESSION_SECRET=                     # server only, required
+NEXT_PUBLIC_SITE_URL=
 NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=          # server only
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=              # server only
-NEXT_PUBLIC_SITE_URL=
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET_KEY=               # server only
 ```
 
 ---

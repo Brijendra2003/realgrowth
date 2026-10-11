@@ -7,6 +7,7 @@ import type { ProjectView } from "@/lib/queries";
 import { ListerBadge, VerifiedBadge } from "@/components/ui/chips";
 import { SaveButton } from "./save-button";
 
+/** `saved` is only passed for signed-in viewers; without it the save button is hidden. */
 export function ProjectCard({ p, saved, priority = false }: { p: ProjectView; saved?: boolean; priority?: boolean }) {
   const perSqft = p.purpose === "sale" ? formatPricePerSqft(p.price, p.carpet_area_sqft) : null;
   return (
@@ -27,9 +28,11 @@ export function ProjectCard({ p, saved, priority = false }: { p: ProjectView; sa
           <VerifiedBadge />
           <span className="chip bg-white/90 text-ink backdrop-blur">{p.purpose === "rent" ? "For rent" : CATEGORY_SHORT[p.category]}</span>
         </div>
-        <div className="absolute right-3 top-3 z-10">
-          <SaveButton projectId={p.id} saved={!!saved} />
-        </div>
+        {saved !== undefined && (
+          <div className="absolute right-3 top-3 z-10">
+            <SaveButton projectId={p.id} saved={saved} />
+          </div>
+        )}
         <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
           <span className="flex items-center gap-1 text-xs font-medium opacity-90">
             <Camera className="h-3.5 w-3.5" strokeWidth={1.5} /> {p.media.length}

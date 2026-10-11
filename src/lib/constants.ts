@@ -20,11 +20,11 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
 };
 
-export const SIGNUP_ROLE_CARDS: { role: PublicRole; title: string; body: string }[] = [
+/** Only listers create accounts. Buyers enquire without signing in. */
+export const SIGNUP_ROLE_CARDS: { role: ListerRole; title: string; body: string }[] = [
   { role: "developer", title: "I'm a developer", body: "List new projects and towers, and get enquiries straight to your sales team." },
   { role: "owner", title: "I own a property to list", body: "Sell or rent out your flat, shop or plot — no middlemen needed." },
   { role: "broker", title: "I'm a broker / channel partner", body: "List properties for your clients and manage every lead in one place." },
-  { role: "buyer", title: "I'm looking to buy or rent", body: "Find verified homes and offices between Mira Road and Dahanu Road." },
 ];
 
 export const isLister = (role?: UserRole | null): role is ListerRole =>
@@ -173,8 +173,6 @@ export const SORTS = [
 export const MAHARERA_REGEX = /^P99\d{9}$/;
 export const PHONE_REGEX = /^[6-9]\d{9}$/;
 export const MAX_PHOTOS = 15;
-export const DEMO_OTP = "123456";
-export const DEMO_PASSWORD = "demo1234";
 
 export const SITE = {
   name: "Real Growth",

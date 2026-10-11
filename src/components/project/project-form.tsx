@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import { Check, ImagePlus, Info, ShieldCheck, Trash2, Undo2 } from "lucide-react";
 import { saveProjectAction } from "@/actions/projects";
 import { Field, FormAlert } from "@/components/ui/field";
+import { Loader } from "@/components/ui/loader";
 import { SubmitButton } from "@/components/ui/submit-button";
 import {
   AMENITIES,
@@ -31,6 +32,27 @@ const CATEGORY_TO_STATUS: Record<ListingCategory, ConstructionStatus> = {
   ready_to_move: "ready",
   resale: "resale",
 };
+
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+
+type Upload = { key: string; preview: string; status: "uploading" | "done" | "error"; public_id?: string; url?: string };
+
+/** Asks our server to sign the upload, then sends the file straight to Cloudinary. */
+async function uploadPhoto(file: File): Promise<{ public_id: string; url: string }> {
+  const res = await fetch("/api/cloudinary/sign", { method: "POST" });
+  if (!res.ok) throw new Error("Could not start the upload");
+  const signed = (await res.json()) as { cloudName: string; apiKey: string; signature: string; params: Record<string, string | number> };
+  const body = new FormData();
+  body.set("file", file);
+  body.set("api_key", signed.apiKey);
+  body.set("signature", signed.signature);
+  for (const [k, v] of Object.entries(signed.params)) body.set(k, String(v));
+  const up = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`, { method: "POST", body });
+  if (!up.ok) throw new Error("Upload failed");
+  const data = (await up.json()) as { public_id: string; secure_url: string };
+  return { public_id: data.public_id, url: data.secure_url };
+}
 
 function Section({ n, title, hint, children }: { n: number; title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -75,28 +97,32 @@ export function ProjectForm({ areas, propertyTypes, project }: Props) {
   const [price, setPrice] = useState(pick("price"));
   const [amenities, setAmenities] = useState<string[]>(project?.amenities ?? []);
   const [keep, setKeep] = useState<string[]>(project?.media.map((m) => m.id) ?? []);
-  const [files, setFiles] = useState<{ file: File; url: string }[]>([]);
+  const [uploads, setUploads] = useState<Upload[]>([]);
   const [clientError, setClientError] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-
-  // Keep the real <input type=file> in sync with our preview list
-  // (also after React resets the form when the action returns errors).
-  useEffect(() => {
-    if (!fileInput.current) return;
-    const dt = new DataTransfer();
-    files.forEach((f) => dt.items.add(f.file));
-    fileInput.current.files = dt.files;
-  }, [files, state]);
 
   const types = propertyTypes.filter((t) => t.segment === segment);
   const needsRera = status === "under_construction";
-  const photoCount = keep.length + files.length;
+  const done = uploads.filter((u) => u.status === "done");
+  const uploading = uploads.some((u) => u.status === "uploading");
+  const photoCount = keep.length + uploads.filter((u) => u.status !== "error").length;
   const priceNum = Number(price);
 
+  // Photos go straight to Cloudinary as soon as they are picked; the form only submits their ids.
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    const incoming = [...list].filter((f) => f.type.startsWith("image/"));
-    setFiles((cur) => [...cur, ...incoming.map((file) => ({ file, url: URL.createObjectURL(file) }))].slice(0, MAX_PHOTOS - keep.length));
+    const room = MAX_PHOTOS - photoCount;
+    const picked = [...list].filter((f) => PHOTO_TYPES.includes(f.type));
+    const tooBig = picked.filter((f) => f.size > MAX_PHOTO_BYTES);
+    const incoming = picked.filter((f) => f.size <= MAX_PHOTO_BYTES).slice(0, Math.max(0, room));
+    setClientError(tooBig.length ? `“${tooBig[0]!.name}” is larger than 10 MB. Please use a smaller photo.` : null);
+    for (const file of incoming) {
+      const key = crypto.randomUUID();
+      setUploads((cur) => [...cur, { key, preview: URL.createObjectURL(file), status: "uploading" }]);
+      uploadPhoto(file).then(
+        (photo) => setUploads((cur) => cur.map((u) => (u.key === key ? { ...u, ...photo, status: "done" } : u))),
+        () => setUploads((cur) => cur.map((u) => (u.key === key ? { ...u, status: "error" } : u))),
+      );
+    }
   };
 
   return (
@@ -104,16 +130,24 @@ export function ProjectForm({ areas, propertyTypes, project }: Props) {
       action={action}
       className="space-y-6"
       onSubmit={(ev) => {
-        if (photoCount === 0) {
+        const problem = uploading
+          ? "Your photos are still uploading. Please wait a moment and try again."
+          : photoCount === 0
+            ? "Add at least one photo — listings with photos get far more enquiries."
+            : null;
+        setClientError(problem);
+        if (problem) {
           ev.preventDefault();
-          setClientError("Add at least one photo — listings with photos get far more enquiries.");
           document.getElementById("step-4")?.scrollIntoView({ behavior: "smooth" });
-        } else setClientError(null);
+        }
       }}
     >
       {project && <input type="hidden" name="project_id" value={project.id} />}
       {keep.map((id) => (
         <input key={id} type="hidden" name="keep_media" value={id} />
+      ))}
+      {done.map((u) => (
+        <input key={u.key} type="hidden" name="media_new" value={JSON.stringify({ public_id: u.public_id, url: u.url })} />
       ))}
 
       {(state.message || clientError) && <FormAlert>{clientError ?? state.message}</FormAlert>}
@@ -264,14 +298,20 @@ export function ProjectForm({ areas, propertyTypes, project }: Props) {
               </div>
             );
           })}
-          {files.map((f, i) => (
-            <div key={f.url} className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">
+          {uploads.map((u, i) => (
+            <div key={u.key} className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">
               {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
-              <img src={f.url} alt="" className="h-full w-full object-cover" />
-              {i === 0 && keep.length === 0 && <span className="chip absolute bottom-2 left-2 bg-brand-green text-white">Cover</span>}
+              <img src={u.preview} alt="" className={`h-full w-full object-cover ${u.status === "done" ? "" : "opacity-40"}`} />
+              {u.status === "uploading" && (
+                <span className="absolute inset-0 grid place-items-center" role="status" aria-label="Uploading photo">
+                  <Loader size="md" className="loader-brand" />
+                </span>
+              )}
+              {u.status === "error" && <span className="chip absolute bottom-2 left-2 bg-danger text-white">Upload failed</span>}
+              {u.status === "done" && i === 0 && keep.length === 0 && <span className="chip absolute bottom-2 left-2 bg-brand-green text-white">Cover</span>}
               <button
                 type="button"
-                onClick={() => setFiles((cur) => cur.filter((x) => x.url !== f.url))}
+                onClick={() => setUploads((cur) => cur.filter((x) => x.key !== u.key))}
                 className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-ink shadow"
                 aria-label="Remove photo"
               >
@@ -287,8 +327,7 @@ export function ProjectForm({ areas, propertyTypes, project }: Props) {
             </label>
           )}
         </div>
-        <input ref={fileInput} type="file" name="photos" multiple className="hidden" tabIndex={-1} aria-hidden="true" />
-        <p className={e.photos ? "field-error" : "hint"}>{e.photos ?? `${photoCount} of ${MAX_PHOTOS} photos · JPG, PNG or WebP, up to 5 MB each`}</p>
+        <p className={e.photos ? "field-error" : "hint"}>{e.photos ?? `${photoCount} of ${MAX_PHOTOS} photos · JPG, PNG or WebP, up to 10 MB each`}</p>
       </Section>
 
       <Section n={5} title="Describe it" hint="A few honest lines help buyers decide to call.">

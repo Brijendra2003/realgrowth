@@ -6,6 +6,7 @@ import { CheckCircle2, Repeat, Send } from "lucide-react";
 import { enquiryAction } from "@/actions/leads";
 import { Field, FormAlert } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Turnstile } from "@/components/ui/turnstile";
 import type { ActionState } from "@/lib/types";
 
 export function EnquiryForm({
@@ -14,12 +15,14 @@ export function EnquiryForm({
   priorWithLister,
   alreadyEnquired,
   listerName,
+  signedIn,
 }: {
   projectId: string;
   defaults: { name: string; phone: string };
   priorWithLister: number;
   alreadyEnquired: boolean;
   listerName: string;
+  signedIn: boolean;
 }) {
   const [state, action] = useActionState<ActionState, FormData>(enquiryAction, {});
   const v = state.values ?? {};
@@ -30,9 +33,11 @@ export function EnquiryForm({
         <CheckCircle2 className="mx-auto h-12 w-12 text-brand-green" strokeWidth={1.4} />
         <p className="mt-3 text-lg font-semibold">Enquiry sent</p>
         <p className="mt-1 text-sm text-ink-soft">{state.message}</p>
-        <Link href="/my-enquiries" className="btn btn-outline btn-sm mt-5">
-          Track my enquiries
-        </Link>
+        {signedIn && (
+          <Link href="/my-enquiries" className="btn btn-outline btn-sm mt-5">
+            Track my enquiries
+          </Link>
+        )}
       </div>
     );
   }
@@ -70,6 +75,7 @@ export function EnquiryForm({
         </span>
       </label>
       {state.errors?.consent && <p className="field-error">{state.errors.consent}</p>}
+      <Turnstile action="enquiry" resetOn={state} />
       <SubmitButton className="btn btn-primary btn-lg w-full" pendingText="Sending…">
         <Send className="h-4 w-4" strokeWidth={2} /> Send enquiry
       </SubmitButton>

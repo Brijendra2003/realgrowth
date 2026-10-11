@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { clearSession, requireUser } from "@/lib/auth";
+import { destroyImages } from "@/lib/cloudinary";
 import { isStaff } from "@/lib/constants";
-import { mutate, nowIso } from "@/lib/db";
+import { fetchAll, rows, sb } from "@/lib/supabase";
 import type { ActionState } from "@/lib/types";
 import { fieldErrors, formValues, profileSchema } from "@/lib/validators";
 
@@ -14,34 +15,41 @@ export async function updateProfileAction(_: ActionState, fd: FormData): Promise
   const values = formValues(fd);
   const parsed = profileSchema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { errors: fieldErrors(parsed.error), values };
-  await mutate((db) => {
-    const p = db.profiles.find((x) => x.id === user.id);
-    if (!p) return;
-    Object.assign(p, parsed.data, { updated_at: nowIso() });
-    logActivity(db, user, "user.profile_updated", { type: "profile", id: user.id });
-  });
+  const db = await sb();
+  const { error } = await db.from("profiles").update(parsed.data).eq("id", user.id);
+  if (error) {
+    console.error(`[profile.update] ${error.message}`);
+    return { message: "We couldn't save your profile just now. Please try again.", values };
+  }
+  await logActivity(user, "user.profile_updated", { type: "profile", id: user.id });
   revalidatePath("/", "layout");
   return { ok: true, message: "Your profile is saved." };
 }
 
-/** DPDP Act: users can delete their account. Listings are withdrawn, enquiries anonymised. */
+/**
+ * DPDP Act: users can delete their account. The account, its listings and
+ * photos, the enquiries on those listings and the enquiries it sent are all
+ * removed (the database cascades from the profile row).
+ */
 export async function deleteAccountAction(fd: FormData) {
   const user = await requireUser("/profile");
   if (isStaff(user.role) || fd.get("confirm") !== "DELETE") return;
-  await mutate((db) => {
-    db.profiles = db.profiles.filter((p) => p.id !== user.id);
-    for (const p of db.projects) if (p.lister_id === user.id && p.status !== "sold") p.status = "withdrawn";
-    for (const l of db.leads) {
-      if (l.buyer_id === user.id) {
-        l.name = "Deleted user";
-        l.phone = "0000000000";
-        l.email = null;
-      }
-    }
-    db.saved = db.saved.filter((s) => s.user_id !== user.id);
-    db.notifications = db.notifications.filter((n) => n.user_id !== user.id);
-    logActivity(db, user, "user.deleted", { type: "profile", id: user.id });
-  });
+  const db = await sb();
+
+  const projectIds = rows<{ id: string }>(await db.from("projects").select("id").eq("lister_id", user.id)).map((p) => p.id);
+  const photos = projectIds.length
+    ? await fetchAll<{ cloudinary_public_id: string | null }>((from, to) =>
+        db.from("project_media").select("cloudinary_public_id").in("project_id", projectIds).order("id").range(from, to),
+      )
+    : [];
+
+  const { error } = await db.from("profiles").delete().eq("id", user.id);
+  if (error) {
+    console.error(`[profile.delete] ${error.message}`);
+    redirect("/profile?error=delete");
+  }
+  await destroyImages(photos.map((m) => m.cloudinary_public_id));
+  await logActivity(user, "user.deleted", { type: "profile", id: user.id });
   await clearSession();
   revalidatePath("/", "layout");
   redirect("/?deleted=1");

@@ -76,11 +76,11 @@ export function SiteFooter() {
       </section>
 
       <div className="relative overflow-hidden bg-brand-green-900 text-brand-cream/80">
-        <LogoMark className="pointer-events-none absolute -right-16 -top-10 h-[26rem] w-auto opacity-[0.05]" line="#FFDFA0" accent="#FFDFA0" />
+        <LogoMark className="pointer-events-none absolute -right-16 -top-10 h-[26rem] w-auto opacity-[0.05]" sizes="416px" />
         <div className="container-page relative grid grid-cols-1 gap-10 py-14 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
           <div>
             <div className="flex items-center gap-3">
-              <LogoMark className="h-14 w-auto" line="#FFDFA0" />
+              <LogoMark className="h-14 w-auto" sizes="112px" />
               <div>
                 <p className="font-display text-lg font-semibold tracking-[0.24em] text-brand-cream">REAL GROWTH</p>
                 <p className="text-[0.62rem] font-semibold tracking-[0.3em] text-white/60">REAL ESTATE AGENT</p>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DemoAccounts } from "@/components/auth/demo-accounts";
 import { LoginForm } from "@/components/auth/login-form";
 import { getSessionUser, homeFor } from "@/lib/auth";
 
@@ -23,7 +22,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         Sign in to <span className="accent-serif text-brand-green">Real Growth</span>
       </h1>
       <p className="mt-2 text-ink-soft">
-        {next ? "Please sign in to continue — we'll bring you right back." : "Use your mobile number and password, or a one-time code."}
+        {next ? "Please sign in to continue — we'll bring you right back." : "Use your mobile number and password."}
       </p>
       <div className="mt-8">
         <LoginForm next={next} />
@@ -34,7 +33,6 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           Create a free account
         </Link>
       </p>
-      <DemoAccounts />
     </div>
   );
 }

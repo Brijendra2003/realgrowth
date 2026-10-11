@@ -14,9 +14,9 @@ export default function PrivacyPage() {
         <p><em>Template — have this reviewed by your legal advisor before launch.</em></p>
         <h2>What we collect</h2>
         <ul>
-          <li>Account details: name, mobile number, optional email, and your role (buyer, owner, developer or broker).</li>
+          <li>Account details for listers: name, mobile number, optional email, and your role (owner, developer or broker).</li>
           <li>Listing details and photos you upload.</li>
-          <li>Enquiries you send, including your message.</li>
+          <li>Enquiries you send: your name, mobile number and message. You don&apos;t need an account to enquire.</li>
           <li>Basic usage data such as pages viewed, to keep the service secure and improve it.</li>
         </ul>
         <h2>How we use it</h2>
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           number are shared <strong>only</strong> with that lister and our team.
         </p>
         <h2>Consent</h2>
-        <p>We ask for your consent when you sign up and each time you send an enquiry. You can withdraw consent by deleting your account.</p>
+        <p>We ask for your consent when you sign up and each time you send an enquiry. You can withdraw consent by deleting your account, or, if you enquired without one, by writing to {SITE.email}.</p>
         <h2>Your rights</h2>
         <ul>
           <li>See and correct your data from your Profile page.</li>

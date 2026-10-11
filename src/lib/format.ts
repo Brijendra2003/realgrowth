@@ -21,9 +21,12 @@ export function formatPricePerSqft(price: number, sqft: number): string | null {
   return `₹${Math.round(price / sqft).toLocaleString("en-IN")}/sq ft`;
 }
 
+/** Everything is shown in India time, wherever the server runs. */
+const TZ = "Asia/Kolkata";
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: TZ });
 }
 
 export function formatDateTime(iso: string | null | undefined): string {
@@ -34,12 +37,13 @@ export function formatDateTime(iso: string | null | undefined): string {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: TZ,
   });
 }
 
 export function formatMonthYear(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: TZ });
 }
 
 /** "just now", "3 h ago", "2 days ago" — call only at request time. */
@@ -70,7 +74,6 @@ export function maskPhone(phone: string): string {
 
 export function toDatetimeLocal(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  // Shift to IST (UTC+5:30), then read the parts back as if they were UTC.
+  return new Date(new Date(iso).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 16);
 }

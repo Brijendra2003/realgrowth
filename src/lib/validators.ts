@@ -6,7 +6,7 @@ import {
   LEAD_STAGES,
   MAHARERA_REGEX,
   PHONE_REGEX,
-  PUBLIC_ROLES,
+  LISTER_ROLES,
   PURPOSES,
   SEGMENTS,
 } from "./constants";
@@ -27,24 +27,19 @@ const optionalEmail = z
   .nullable();
 
 export const signupSchema = z.object({
-  role: z.enum(PUBLIC_ROLES, { message: "Choose what describes you best" }),
+  role: z.enum(LISTER_ROLES, { message: "Choose what describes you best" }),
   full_name: z.string().trim().min(2, "Please enter your name").max(80),
   phone,
   email: optionalEmail,
-  password: z.string().min(8, "Use at least 8 characters"),
+  password: z.string().min(8, "Use at least 8 characters").max(200),
   company_name: z.string().trim().max(100).optional().transform((v) => v || null),
   agent_rera_no: z.string().trim().max(30).optional().transform((v) => v || null),
   consent: z.literal("on", { message: "Please accept to continue" }),
 });
 
-export const loginPasswordSchema = z.object({
+export const loginSchema = z.object({
   phone,
-  password: z.string().min(1, "Enter your password"),
-});
-
-export const loginOtpSchema = z.object({
-  phone,
-  otp: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
+  password: z.string().min(1, "Enter your password").max(200),
 });
 
 export const projectSchema = z
@@ -88,7 +83,7 @@ export const projectSchema = z
 export type ProjectInput = z.infer<typeof projectSchema>;
 
 export const enquirySchema = z.object({
-  project_id: z.string().min(1),
+  project_id: z.uuid(),
   name: z.string().trim().min(2, "Please enter your name").max(80),
   phone,
   message: z.string().trim().max(1000).optional().transform((v) => v || ""),
@@ -115,7 +110,7 @@ export const staffSchema = z.object({
   phone,
   email: optionalEmail,
   role: z.enum(["ops", "admin", "super_admin"]),
-  password: z.string().min(8, "Use at least 8 characters"),
+  password: z.string().min(10, "Use at least 10 characters").max(200),
 });
 
 /** Zod issues → { field: message } (first message per field). */
@@ -130,6 +125,6 @@ export function fieldErrors(error: z.ZodError): Record<string, string> {
 
 export function formValues(fd: FormData): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const [k, v] of fd.entries()) if (typeof v === "string" && k !== "password") out[k] = v;
+  for (const [k, v] of fd.entries()) if (typeof v === "string" && k !== "password" && k !== "cf-turnstile-response") out[k] = v;
   return out;
 }

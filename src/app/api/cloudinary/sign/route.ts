@@ -1,28 +1,19 @@
-import { createHash } from "node:crypto";
 import { getSessionUser } from "@/lib/auth";
+import { signedUploadParams } from "@/lib/cloudinary";
 import { isLister } from "@/lib/constants";
+import { limited } from "@/lib/rate-limit";
 
 /**
  * Signed upload parameters for direct browser → Cloudinary uploads (Architecture §12).
- * The API secret never leaves the server. Returns 501 until Cloudinary env vars are set;
- * until then the listing form stores photos locally via /api/media.
+ * The API secret never leaves the server.
  */
 export async function POST() {
   const user = await getSessionUser();
   if (!user || !isLister(user.role)) return Response.json({ error: "Sign in as a lister to upload photos." }, { status: 401 });
-
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const secret = process.env.CLOUDINARY_API_SECRET;
-  if (!cloudName || !apiKey || !secret) return Response.json({ error: "Cloudinary is not configured." }, { status: 501 });
-
-  const timestamp = Math.floor(Date.now() / 1000);
-  const params = { folder: `realgrowth/${user.id}`, timestamp, allowed_formats: "jpg,png,webp,pdf" };
-  const toSign = Object.entries(params)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join("&");
-  const signature = createHash("sha1").update(toSign + secret).digest("hex");
-
-  return Response.json({ cloudName, apiKey, signature, ...params });
+  if (await limited(`upload:${user.id}`, 150, 60 * 60 * 1000)) {
+    return Response.json({ error: "You've uploaded a lot of photos in a short time. Please try again later." }, { status: 429 });
+  }
+  const signed = signedUploadParams(user.id);
+  if (!signed) return Response.json({ error: "Photo uploads are not set up yet. Please contact support." }, { status: 503 });
+  return Response.json(signed);
 }

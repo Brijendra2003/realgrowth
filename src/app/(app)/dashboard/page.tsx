@@ -141,7 +141,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
             {d.recentGroups.length === 0 ? (
               <EmptyState icon={Inbox} title="No leads yet" body="Once your property is live, buyer enquiries show up here." />
             ) : (
-              d.recentGroups.slice(0, 3).map((g) => <BuyerGroupCard key={g.buyer_id} g={g} />)
+              d.recentGroups.slice(0, 3).map((g) => <BuyerGroupCard key={g.key} g={g} />)
             )}
           </div>
         </section>

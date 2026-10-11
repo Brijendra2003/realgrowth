@@ -6,7 +6,7 @@
 
 export function DailyBars({ title, total, data }: { title: string; total: number; data: { date: string; value: number }[] }) {
   const max = Math.max(1, ...data.map((d) => d.value));
-  const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" });
   return (
     <figure className="card p-5">
       <figcaption className="flex items-baseline justify-between">

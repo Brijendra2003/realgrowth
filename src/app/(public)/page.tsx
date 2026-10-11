@@ -164,7 +164,7 @@ export default async function HomePage() {
           />
           <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {newest.map((p, i) => (
-              <ProjectCard key={p.id} p={p} saved={savedIds.has(p.id)} priority={i < 3} />
+              <ProjectCard key={p.id} p={p} saved={user ? savedIds.has(p.id) : undefined} priority={i < 3} />
             ))}
           </div>
         </div>

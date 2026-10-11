@@ -266,42 +266,34 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
                   <p className="text-sm text-muted">You&apos;re signed in as Real Growth staff. Enquiries are sent by buyers.</p>
                 ) : p.status !== "verified" ? (
                   <p className="text-sm text-muted">Enquiries open once the listing is live.</p>
-                ) : user ? (
+                ) : (
                   <>
                     <h2 className="text-lg font-semibold">Interested? Get a call back</h2>
-                    {myEnquiry && (
+                    {myEnquiry ? (
                       <p className="mb-3 mt-1 flex items-center gap-2 text-sm text-muted">
                         Your enquiry: <LeadStageChip stage={myEnquiry.stage} />
                       </p>
+                    ) : (
+                      !user && <p className="mt-1.5 text-sm text-muted">No account needed. Your number goes only to this lister.</p>
                     )}
                     <div className="mt-4">
                       <EnquiryForm
                         projectId={p.id}
-                        defaults={{ name: user.full_name, phone: user.phone }}
+                        defaults={{ name: user?.full_name ?? "", phone: user?.phone ?? "" }}
                         priorWithLister={priorWithLister}
                         alreadyEnquired={!!myEnquiry}
                         listerName={listerName}
+                        signedIn={!!user}
                       />
                     </div>
                   </>
-                ) : (
-                  <div className="text-center">
-                    <h2 className="text-lg font-semibold">Interested? Get a call back</h2>
-                    <p className="mt-1.5 text-sm text-muted">Sign in once and send enquiries in one tap. Your number goes only to this lister.</p>
-                    <Link href={`/login?next=/projects/${p.slug}`} className="btn btn-primary btn-lg mt-5 w-full">
-                      Sign in to enquire
-                    </Link>
-                    <Link href={`/signup?role=buyer&next=/projects/${p.slug}`} className="mt-3 inline-block text-sm font-semibold text-brand-green hover:underline">
-                      New here? Create a free account
-                    </Link>
-                  </div>
                 )}
               </div>
             </div>
 
             {!isOwner && p.status === "verified" && (
-              <div className="grid grid-cols-2 gap-3">
-                <SaveButton projectId={p.id} saved={saved} variant="button" />
+              <div className={`grid gap-3 ${user ? "grid-cols-2" : "grid-cols-1"}`}>
+                {user && <SaveButton projectId={p.id} saved={saved} variant="button" />}
                 <a
                   href={`https://wa.me/?text=${encodeURIComponent(`Have a look at ${p.title} on Real Growth`)}`}
                   target="_blank"

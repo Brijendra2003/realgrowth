@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
     <div className="flex min-h-screen flex-col lg:flex-row">
       <aside className="flex flex-col bg-brand-green-900 text-brand-cream lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0">
         <div className="flex items-center gap-3 px-5 py-5">
-          <LogoMark className="h-11 w-auto" line="#FFDFA0" />
+          <LogoMark className="h-11 w-auto" />
           <div>
             <p className="font-display text-sm font-semibold tracking-[0.22em]">REAL GROWTH</p>
             <p className="text-[0.6rem] font-semibold uppercase tracking-[0.25em] text-brand-gold">Team console</p>

@@ -1,8 +1,8 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { Loader } from "@/components/ui/loader";
 
 export function SubmitButton({
   children,
@@ -22,7 +22,7 @@ export function SubmitButton({
     <button type="submit" className={className} disabled={pending} aria-busy={pending} name={name} value={value}>
       {pending ? (
         <>
-          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+          <Loader />
           {pendingText}
         </>
       ) : (

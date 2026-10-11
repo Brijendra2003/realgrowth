@@ -80,7 +80,7 @@ export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (
-            <BuyerGroupCard key={g.buyer_id} g={g} />
+            <BuyerGroupCard key={g.key} g={g} />
           ))}
         </div>
       )}

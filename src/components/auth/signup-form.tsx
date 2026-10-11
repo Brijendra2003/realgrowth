@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { ArrowRight, Building2, Check, Home, Search, UserRound } from "lucide-react";
+import { ArrowRight, Building2, Check, Home, UserRound } from "lucide-react";
 import { signupAction } from "@/actions/auth";
 import { Field, FormAlert } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { SIGNUP_ROLE_CARDS, type PublicRole } from "@/lib/constants";
+import { Turnstile } from "@/components/ui/turnstile";
+import { SIGNUP_ROLE_CARDS, type ListerRole } from "@/lib/constants";
 import type { ActionState } from "@/lib/types";
 
-const ICONS: Record<PublicRole, typeof Home> = { developer: Building2, owner: Home, broker: UserRound, buyer: Search };
+const ICONS: Record<ListerRole, typeof Home> = { developer: Building2, owner: Home, broker: UserRound };
 
-export function SignupForm({ defaultRole, next }: { defaultRole?: PublicRole; next?: string }) {
+export function SignupForm({ defaultRole, next }: { defaultRole?: ListerRole; next?: string }) {
   const [state, action] = useActionState<ActionState, FormData>(signupAction, {});
   const v = state.values ?? {};
-  const [role, setRole] = useState<PublicRole | undefined>((v.role as PublicRole) ?? defaultRole);
+  const [role, setRole] = useState<ListerRole | undefined>((v.role as ListerRole) ?? defaultRole);
   const e = state.errors ?? {};
 
   return (
@@ -88,6 +89,8 @@ export function SignupForm({ defaultRole, next }: { defaultRole?: PublicRole; ne
         </span>
       </label>
       {e.consent && <p className="field-error -mt-4">{e.consent}</p>}
+
+      <Turnstile action="signup" resetOn={state} />
 
       <SubmitButton className="btn btn-primary btn-lg w-full" pendingText="Creating your account…">
         Create free account <ArrowRight className="h-4 w-4" strokeWidth={2} />

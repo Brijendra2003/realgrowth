@@ -253,9 +253,35 @@
 
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Loader — a spinning ring. Inherits the text colour inside buttons;
+     .loader-brand is the standalone version in the logo's green and gold. */
+  .loader {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    border: 2px solid color-mix(in oklab, currentColor 25%, transparent);
+    border-top-color: currentColor;
+    animation: loader-spin 0.75s linear infinite;
+  }
+  .loader-xs { width: 0.75rem; height: 0.75rem; border-width: 1.5px; }
+  .loader-sm { width: 1rem; height: 1rem; border-width: 2px; }
+  .loader-md { width: 2.25rem; height: 2.25rem; border-width: 3px; }
+  .loader-lg { width: 3.25rem; height: 3.25rem; border-width: 4px; }
+  .loader-brand {
+    border-color: var(--color-brand-green);
+    border-top-color: var(--color-brand-gold);
+  }
+}
+
+@keyframes loader-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .loader { animation: none; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;

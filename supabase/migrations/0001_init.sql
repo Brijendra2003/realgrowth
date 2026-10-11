@@ -88,7 +88,7 @@ create table leads (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references projects(id) on delete cascade,
   lister_id uuid not null references profiles(id) on delete cascade,
-  buyer_id uuid not null references profiles(id) on delete cascade,
+  buyer_id uuid references profiles(id) on delete cascade,  -- null: visitor without an account
   name text not null,
   phone text not null,
   email text,
@@ -100,7 +100,9 @@ create table leads (
   is_repeat boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (project_id, buyer_id)
+  -- one person per lister: their account when signed in, otherwise their phone number
+  buyer_key text generated always as (coalesce(buyer_id::text, 'tel:' || phone)) stored,
+  unique (project_id, buyer_key)
 );
 
 create table lead_activities (
@@ -210,8 +212,8 @@ create or replace function leads_mark_repeat() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   update leads set is_repeat = (
-    select count(*) >= 2 from leads l where l.buyer_id = new.buyer_id and l.lister_id = new.lister_id)
-  where buyer_id = new.buyer_id and lister_id = new.lister_id;
+    select count(*) >= 2 from leads l where l.buyer_key = new.buyer_key and l.lister_id = new.lister_id)
+  where buyer_key = new.buyer_key and lister_id = new.lister_id;
   return null;
 end $$;
 create trigger leads_repeat after insert on leads for each row execute function leads_mark_repeat();
@@ -228,12 +230,12 @@ create trigger leads_guard before insert on leads for each row execute function 
 
 -- ───────────── Views ─────────────
 create view buyer_lister_summary with (security_invoker = true) as
-select lister_id, buyer_id,
+select lister_id, buyer_key, max(buyer_id::text)::uuid as buyer_id,
        count(*) as projects_enquired,
        array_agg(project_id order by created_at desc) as project_ids,
        max(created_at) as last_enquiry_at
 from leads
-group by lister_id, buyer_id;
+group by lister_id, buyer_key;
 -- projects_enquired >= 2 → show "Repeat enquirer" badge
 
 -- ───────────── Row Level Security (§10) ─────────────
@@ -282,6 +284,7 @@ create policy media_staff_read on project_media for select using (is_staff());
 -- leads (buyer phone visible only to the lister + staff)
 create policy leads_buyer_read on leads for select using (buyer_id = auth.uid());
 create policy leads_buyer_insert on leads for insert with check (buyer_id = auth.uid());
+-- Visitors enquire without an account: the enquiry server action inserts those rows with the service role.
 create policy leads_lister_read on leads for select using (lister_id = auth.uid());
 create policy leads_lister_update on leads for update using (lister_id = auth.uid()) with check (lister_id = auth.uid());
 create policy leads_staff_read on leads for select using (is_staff());

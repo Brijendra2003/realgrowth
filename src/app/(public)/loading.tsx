@@ -1,5 +1,5 @@
-import { PublicPageSkeleton } from "@/components/ui/skeletons";
+import { LoadingPanel } from "@/components/ui/loader";
 
 export default function Loading() {
-  return <PublicPageSkeleton />;
+  return <LoadingPanel label="Loading…" size="lg" className="min-h-[60vh]" />;
 }
