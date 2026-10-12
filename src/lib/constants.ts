@@ -173,6 +173,7 @@ export const SORTS = [
 export const MAHARERA_REGEX = /^P99\d{9}$/;
 export const PHONE_REGEX = /^[6-9]\d{9}$/;
 export const MAX_PHOTOS = 15;
+export const MAX_VIDEOS = 2;
 
 export const SITE = {
   name: "Real Growth",

@@ -7,7 +7,7 @@ import { ReviewForm } from "@/components/admin/review-form";
 import { LeadStageChip, ProjectStatusChip, RoleChip } from "@/components/ui/chips";
 import { requireStaff } from "@/lib/auth";
 import { CATEGORY_LABELS, CONSTRUCTION_LABELS, PURPOSE_LABELS, SEGMENT_LABELS } from "@/lib/constants";
-import { formatDate, formatDateTime, formatMonthYear, formatPrice } from "@/lib/format";
+import { formatDate, formatDateTime, formatMonthYear, formatPrice, videoPoster } from "@/lib/format";
 import { getProjectForReview } from "@/lib/queries";
 
 // Reads the session or URL on every request, so navigations may block on the server.
@@ -57,7 +57,8 @@ export default async function ReviewPage({ params }: PageProps<"/admin/verificat
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {p.media.map((m, i) => (
               <a key={m.id} href={m.url} target="_blank" rel="noreferrer" className={`relative overflow-hidden rounded-xl bg-sand ${i === 0 ? "col-span-2 row-span-2 aspect-[4/3]" : "aspect-[4/3]"}`}>
-                <Image src={m.url} alt={`Photo ${i + 1}`} fill sizes="(min-width:1280px) 30vw, 50vw" className="object-cover" />
+                <Image src={m.kind === "video" ? videoPoster(m.url) : m.url} alt={`${m.kind === "video" ? "Video" : "Photo"} ${i + 1}`} fill sizes="(min-width:1280px) 30vw, 50vw" className="object-cover" />
+                {m.kind === "video" && <span className="chip absolute bottom-2 left-2 bg-black/60 text-white">Video — opens in a new tab</span>}
               </a>
             ))}
           </div>

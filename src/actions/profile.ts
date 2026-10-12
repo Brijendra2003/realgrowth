@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { clearSession, requireUser } from "@/lib/auth";
-import { destroyImages } from "@/lib/cloudinary";
+import { destroyMedia } from "@/lib/cloudinary";
 import { isStaff } from "@/lib/constants";
 import { fetchAll, rows, sb } from "@/lib/supabase";
 import type { ActionState } from "@/lib/types";
@@ -38,8 +38,8 @@ export async function deleteAccountAction(fd: FormData) {
 
   const projectIds = rows<{ id: string }>(await db.from("projects").select("id").eq("lister_id", user.id)).map((p) => p.id);
   const photos = projectIds.length
-    ? await fetchAll<{ cloudinary_public_id: string | null }>((from, to) =>
-        db.from("project_media").select("cloudinary_public_id").in("project_id", projectIds).order("id").range(from, to),
+    ? await fetchAll<{ cloudinary_public_id: string | null; kind: string }>((from, to) =>
+        db.from("project_media").select("cloudinary_public_id,kind").in("project_id", projectIds).order("id").range(from, to),
       )
     : [];
 
@@ -48,7 +48,7 @@ export async function deleteAccountAction(fd: FormData) {
     console.error(`[profile.delete] ${error.message}`);
     redirect("/profile?error=delete");
   }
-  await destroyImages(photos.map((m) => m.cloudinary_public_id));
+  await destroyMedia(photos);
   await logActivity(user, "user.deleted", { type: "profile", id: user.id });
   await clearSession();
   revalidatePath("/", "layout");

@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity } from "@/lib/activity";
 import { getSessionUser, requireLister } from "@/lib/auth";
-import { destroyImages, isOwnUpload } from "@/lib/cloudinary";
-import { MAX_PHOTOS, type ProjectStatus } from "@/lib/constants";
+import { destroyMedia, isOwnUpload, type UploadKind } from "@/lib/cloudinary";
+import { MAX_PHOTOS, MAX_VIDEOS, type ProjectStatus } from "@/lib/constants";
 import { slugify } from "@/lib/format";
 import { row, rows, sb } from "@/lib/supabase";
 import type { ActionState, Project } from "@/lib/types";
@@ -23,18 +23,33 @@ function parseForm(fd: FormData) {
   return projectSchema.safeParse(raw);
 }
 
+type SavedMedia = { id: string; cloudinary_public_id: string | null; kind: string };
+type NewMedia = { cloudinary_public_id: string; url: string; kind: UploadKind };
+
 /**
- * Photos are uploaded by the browser straight to Cloudinary (signed by
- * /api/cloudinary/sign); the form only carries their ids. Anything that isn't
- * in this lister's own Cloudinary folder is ignored.
+ * Photos and videos are uploaded by the browser straight to Cloudinary (signed
+ * by /api/cloudinary/sign); the form only carries their ids, in the order the
+ * lister arranged them. An entry is either a photo already on this property or
+ * a new upload; anything that isn't in this lister's own Cloudinary folder is ignored.
  */
-function parseUploads(fd: FormData, userId: string) {
-  const out: { cloudinary_public_id: string; url: string }[] = [];
-  for (const entry of fd.getAll("media_new")) {
+function parseMedia(fd: FormData, userId: string, existing: SavedMedia[]) {
+  const out: (SavedMedia | NewMedia)[] = [];
+  for (const entry of fd.getAll("media")) {
     try {
-      const { public_id, url } = JSON.parse(String(entry)) as { public_id?: unknown; url?: unknown };
-      if (typeof public_id === "string" && typeof url === "string" && isOwnUpload(userId, public_id, url) && !out.some((m) => m.cloudinary_public_id === public_id)) {
-        out.push({ cloudinary_public_id: public_id, url });
+      const m = JSON.parse(String(entry)) as { id?: unknown; public_id?: unknown; url?: unknown; kind?: unknown };
+      if (typeof m.id === "string") {
+        const saved = existing.find((e) => e.id === m.id);
+        if (saved && !out.includes(saved)) out.push(saved);
+        continue;
+      }
+      const kind: UploadKind = m.kind === "video" ? "video" : "image";
+      if (
+        typeof m.public_id === "string" &&
+        typeof m.url === "string" &&
+        isOwnUpload(userId, m.public_id, m.url, kind) &&
+        !out.some((x) => x.cloudinary_public_id === m.public_id)
+      ) {
+        out.push({ cloudinary_public_id: m.public_id, url: m.url, kind });
       }
     } catch {}
   }
@@ -44,24 +59,37 @@ function parseUploads(fd: FormData, userId: string) {
 export async function saveProjectAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireLister("/list-project");
   const values = formValues(fd);
-  delete values.media_new;
+  delete values.media;
   const projectId = String(fd.get("project_id") ?? "") || null;
+  const db = await sb();
+
+  let p: Project | null = null;
+  let existing: SavedMedia[] = [];
+  if (projectId) {
+    if (/^[0-9a-f-]{36}$/i.test(projectId)) p = row<Project>(await db.from("projects").select("*").eq("id", projectId).eq("lister_id", user.id).maybeSingle());
+    if (!p) return { message: "We couldn't find this property." };
+    existing = rows<SavedMedia>(await db.from("project_media").select("id,cloudinary_public_id,kind").eq("project_id", p.id).order("sort_order"));
+  }
 
   const parsed = parseForm(fd);
   const errors: Record<string, string> = parsed.success ? {} : fieldErrors(parsed.error);
 
-  const uploads = parseUploads(fd, user.id);
-  const keep = fd.getAll("keep_media").map(String);
-  if (uploads.length + keep.length === 0) errors.photos = "Add at least one photo — listings with photos get far more enquiries.";
-  if (uploads.length + keep.length > MAX_PHOTOS) errors.photos = `You can add up to ${MAX_PHOTOS} photos.`;
+  const media = parseMedia(fd, user.id, existing);
+  const photoCount = media.filter((m) => m.kind === "image").length;
+  const videoCount = media.filter((m) => m.kind === "video").length;
+  if (photoCount === 0) errors.photos = "Add at least one photo — listings with photos get far more enquiries.";
+  if (photoCount > MAX_PHOTOS) errors.photos = `You can add up to ${MAX_PHOTOS} photos.`;
+  if (videoCount > MAX_VIDEOS) errors.photos = `You can add up to ${MAX_VIDEOS} videos.`;
 
   if (!parsed.success || Object.keys(errors).length) {
     return { errors, values, message: "Please fix the highlighted fields." };
   }
   const input = parsed.data;
-  const db = await sb();
+  // Each item's place in the list is its sort order; the first photo is the cover.
+  const uploads = media.flatMap((m, i) => ("id" in m ? [] : [{ ...m, sort_order: i }]));
+  const kept = media.flatMap((m, i) => ("id" in m ? [{ id: m.id, sort_order: i }] : []));
 
-  if (!projectId) {
+  if (!p) {
     const { data, error } = await db
       .from("projects")
       .insert({ ...input, lister_id: user.id, slug: `${slugify(input.title)}-${randomBytes(3).toString("hex")}`, status: "unverified" })
@@ -72,21 +100,14 @@ export async function saveProjectAction(_: ActionState, fd: FormData): Promise<A
       return { values, message: SAVE_FAILED };
     }
     const id = (data as { id: string }).id;
-    const media = await db.from("project_media").insert(uploads.map((m, i) => ({ ...m, project_id: id, kind: "image", sort_order: i })));
-    if (media.error) console.error(`[project.create] photos: ${media.error.message}`);
+    const inserted = await db.from("project_media").insert(uploads.map((m) => ({ ...m, project_id: id })));
+    if (inserted.error) console.error(`[project.create] photos: ${inserted.error.message}`);
     await logActivity(user, "project.created", { type: "project", id }, { title: input.title });
     revalidatePath("/", "layout");
     redirect("/my-projects?saved=review");
   }
 
-  const p = row<Project>(await db.from("projects").select("*").eq("id", projectId).eq("lister_id", user.id).maybeSingle());
-  if (!p) return { message: "We couldn't find this property." };
-  const existing = rows<{ id: string; cloudinary_public_id: string | null }>(
-    await db.from("project_media").select("id,cloudinary_public_id").eq("project_id", p.id).order("sort_order"),
-  );
-  const kept = existing.filter((m) => keep.includes(m.id));
-  const removed = existing.filter((m) => !keep.includes(m.id));
-  if (kept.length + uploads.length === 0) return { errors: { photos: "Add at least one photo — listings with photos get far more enquiries." }, values };
+  const removed = existing.filter((m) => m.kind !== "brochure" && !kept.some((k) => k.id === m.id));
 
   const keyChanged = KEY_FIELDS.some((k) => String(p[k] ?? "") !== String(input[k] ?? ""));
   const backToReview = p.status === "rejected" || (p.status === "verified" && keyChanged);
@@ -103,12 +124,12 @@ export async function saveProjectAction(_: ActionState, fd: FormData): Promise<A
 
   if (removed.length) {
     await db.from("project_media").delete().in("id", removed.map((m) => m.id));
-    await destroyImages(removed.map((m) => m.cloudinary_public_id));
+    await destroyMedia(removed);
   }
-  await Promise.all(kept.map((m, i) => db.from("project_media").update({ sort_order: i }).eq("id", m.id)));
+  await Promise.all(kept.map((m) => db.from("project_media").update({ sort_order: m.sort_order }).eq("id", m.id)));
   if (uploads.length) {
-    const media = await db.from("project_media").insert(uploads.map((m, i) => ({ ...m, project_id: p.id, kind: "image", sort_order: kept.length + i })));
-    if (media.error) console.error(`[project.update] photos: ${media.error.message}`);
+    const inserted = await db.from("project_media").insert(uploads.map((m) => ({ ...m, project_id: p.id })));
+    if (inserted.error) console.error(`[project.update] photos: ${inserted.error.message}`);
   }
 
   await logActivity(user, backToReview ? "project.resubmitted" : "project.edited", { type: "project", id: p.id }, { title: input.title, key_fields_changed: keyChanged });

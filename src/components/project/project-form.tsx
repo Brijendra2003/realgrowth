@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useActionState, useState } from "react";
-import { Check, ImagePlus, Info, ShieldCheck, Trash2, Undo2 } from "lucide-react";
+import { Check, ImagePlus, Info, Play, ShieldCheck, Star, Trash2 } from "lucide-react";
 import { saveProjectAction } from "@/actions/projects";
 import { Field, FormAlert } from "@/components/ui/field";
 import { Loader } from "@/components/ui/loader";
@@ -13,13 +13,14 @@ import {
   CATEGORY_LABELS,
   CONFIGURATIONS,
   MAX_PHOTOS,
+  MAX_VIDEOS,
   type ConstructionStatus,
   type ListingCategory,
   type Purpose,
   type Segment,
   type UserRole,
 } from "@/lib/constants";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, videoPoster } from "@/lib/format";
 import type { ActionState, Area, Project, PropertyType } from "@/lib/types";
 
 type Props = {
@@ -36,13 +37,26 @@ const CATEGORY_TO_STATUS: Record<ListingCategory, ConstructionStatus> = {
 };
 
 const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
-type Upload = { key: string; preview: string; status: "uploading" | "done" | "error"; public_id?: string; url?: string };
+type MediaKind = "image" | "video";
+
+/** One tile in the photo grid: a photo or video already on the property ("saved") or one picked just now. */
+type MediaItem = {
+  key: string;
+  kind: MediaKind;
+  preview: string;
+  status: "saved" | "uploading" | "done" | "error";
+  id?: string;
+  public_id?: string;
+  url?: string;
+};
 
 /** Asks our server to sign the upload, then sends the file straight to Cloudinary. */
-async function uploadPhoto(file: File): Promise<{ public_id: string; url: string }> {
-  const res = await fetch("/api/cloudinary/sign", { method: "POST" });
+async function uploadMedia(file: File, kind: MediaKind): Promise<{ public_id: string; url: string }> {
+  const res = await fetch(`/api/cloudinary/sign?kind=${kind}`, { method: "POST" });
   if (!res.ok) throw new Error("Could not start the upload");
   const signed = (await res.json()) as { cloudName: string; apiKey: string; signature: string; params: Record<string, string | number> };
   const body = new FormData();
@@ -50,7 +64,7 @@ async function uploadPhoto(file: File): Promise<{ public_id: string; url: string
   body.set("api_key", signed.apiKey);
   body.set("signature", signed.signature);
   for (const [k, v] of Object.entries(signed.params)) body.set(k, String(v));
-  const up = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`, { method: "POST", body });
+  const up = await fetch(`https://api.cloudinary.com/v1_1/${signed.cloudName}/${kind}/upload`, { method: "POST", body });
   if (!up.ok) throw new Error("Upload failed");
   const data = (await up.json()) as { public_id: string; secure_url: string };
   return { public_id: data.public_id, url: data.secure_url };
@@ -102,34 +116,61 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
   );
   const [price, setPrice] = useState(pick("price"));
   const [amenities, setAmenities] = useState<string[]>(project?.amenities ?? []);
-  const [keep, setKeep] = useState<string[]>(project?.media.map((m) => m.id) ?? []);
-  const [uploads, setUploads] = useState<Upload[]>([]);
+  // Photos and videos in the order they will be shown; the first photo is the cover.
+  const [items, setItems] = useState<MediaItem[]>(
+    () =>
+      project?.media.flatMap((m): MediaItem[] =>
+        m.kind === "brochure" ? [] : [{ key: m.id, id: m.id, kind: m.kind, preview: m.kind === "video" ? videoPoster(m.url) : m.url, status: "saved" }],
+      ) ?? [],
+  );
+  const [dragKey, setDragKey] = useState<string | null>(null);
   const [clientError, setClientError] = useState<string | null>(null);
 
   const types = propertyTypes.filter((t) => t.segment === segment);
   const needsRera = status === "under_construction";
-  const done = uploads.filter((u) => u.status === "done");
-  const uploading = uploads.some((u) => u.status === "uploading");
-  const photoCount = keep.length + uploads.filter((u) => u.status !== "error").length;
+  const ready = items.filter((m) => m.status === "saved" || m.status === "done");
+  const uploading = items.some((m) => m.status === "uploading");
+  const photoCount = items.filter((m) => m.kind === "image" && m.status !== "error").length;
+  const videoCount = items.filter((m) => m.kind === "video" && m.status !== "error").length;
+  const coverKey = items.find((m) => m.kind === "image" && m.status !== "error")?.key;
   const priceNum = Number(price);
 
-  // Photos go straight to Cloudinary as soon as they are picked; the form only submits their ids.
+  // Files go straight to Cloudinary as soon as they are picked; the form only submits their ids.
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    const room = MAX_PHOTOS - photoCount;
-    const picked = [...list].filter((f) => PHOTO_TYPES.includes(f.type));
-    const tooBig = picked.filter((f) => f.size > MAX_PHOTO_BYTES);
-    const incoming = picked.filter((f) => f.size <= MAX_PHOTO_BYTES).slice(0, Math.max(0, room));
-    setClientError(tooBig.length ? `“${tooBig[0]!.name}” is larger than 10 MB. Please use a smaller photo.` : null);
-    for (const file of incoming) {
-      const key = crypto.randomUUID();
-      setUploads((cur) => [...cur, { key, preview: URL.createObjectURL(file), status: "uploading" }]);
-      uploadPhoto(file).then(
-        (photo) => setUploads((cur) => cur.map((u) => (u.key === key ? { ...u, ...photo, status: "done" } : u))),
-        () => setUploads((cur) => cur.map((u) => (u.key === key ? { ...u, status: "error" } : u))),
-      );
+    let photoRoom = MAX_PHOTOS - photoCount;
+    let videoRoom = MAX_VIDEOS - videoCount;
+    let problem: string | null = null;
+    for (const file of list) {
+      const kind: MediaKind | null = PHOTO_TYPES.includes(file.type) ? "image" : VIDEO_TYPES.includes(file.type) ? "video" : null;
+      if (!kind) {
+        problem = `“${file.name}” can't be added. Use JPG, PNG or WebP photos, or MP4, MOV or WebM videos.`;
+      } else if (file.size > (kind === "video" ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES)) {
+        problem = `“${file.name}” is larger than ${kind === "video" ? "100 MB. Please use a shorter video." : "10 MB. Please use a smaller photo."}`;
+      } else if ((kind === "video" ? videoRoom-- : photoRoom--) <= 0) {
+        problem = kind === "video" ? `You can add up to ${MAX_VIDEOS} videos.` : `You can add up to ${MAX_PHOTOS} photos.`;
+      } else {
+        const key = crypto.randomUUID();
+        setItems((cur) => [...cur, { key, kind, preview: URL.createObjectURL(file), status: "uploading" }]);
+        uploadMedia(file, kind).then(
+          (sent) => setItems((cur) => cur.map((m) => (m.key === key ? { ...m, ...sent, status: "done" } : m))),
+          () => setItems((cur) => cur.map((m) => (m.key === key ? { ...m, status: "error" } : m))),
+        );
+      }
     }
+    setClientError(problem);
   };
+
+  /** Moves a tile to where another one sits (drag and drop), or to the front (set as cover). */
+  const moveItem = (key: string, toIndex: number) =>
+    setItems((cur) => {
+      const from = cur.findIndex((m) => m.key === key);
+      if (from < 0 || from === toIndex) return cur;
+      const next = [...cur];
+      const [moved] = next.splice(from, 1);
+      next.splice(toIndex, 0, moved!);
+      return next;
+    });
 
   return (
     <form
@@ -137,7 +178,7 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
       className="space-y-6"
       onSubmit={(ev) => {
         const problem = uploading
-          ? "Your photos are still uploading. Please wait a moment and try again."
+          ? "Your photos or videos are still uploading. Please wait a moment and try again."
           : photoCount === 0
             ? "Add at least one photo — listings with photos get far more enquiries."
             : null;
@@ -149,11 +190,8 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
       }}
     >
       {project && <input type="hidden" name="project_id" value={project.id} />}
-      {keep.map((id) => (
-        <input key={id} type="hidden" name="keep_media" value={id} />
-      ))}
-      {done.map((u) => (
-        <input key={u.key} type="hidden" name="media_new" value={JSON.stringify({ public_id: u.public_id, url: u.url })} />
+      {ready.map((m) => (
+        <input key={m.key} type="hidden" name="media" value={JSON.stringify(m.id ? { id: m.id } : { public_id: m.public_id, url: m.url, kind: m.kind })} />
       ))}
 
       {(state.message || clientError) && <FormAlert>{clientError ?? state.message}</FormAlert>}
@@ -286,54 +324,107 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
         )}
       </Section>
 
-      <Section n={4} title="Photos" hint={`Add 1 to ${MAX_PHOTOS} clear photos. The first one is the cover.`}>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {project?.media.map((m) => {
-            const kept = keep.includes(m.id);
+      <Section n={4} title="Photos and videos" hint={`Add 1 to ${MAX_PHOTOS} clear photos and up to ${MAX_VIDEOS} short videos. Drag to reorder — the first photo is the cover.`}>
+        <div
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+          onDragOver={(ev) => {
+            if (ev.dataTransfer.types.includes("Files")) ev.preventDefault();
+          }}
+          onDrop={(ev) => {
+            if (!ev.dataTransfer.files.length) return;
+            ev.preventDefault();
+            addFiles(ev.dataTransfer.files);
+          }}
+        >
+          {items.map((m, i) => {
+            const label = m.kind === "video" ? "video" : "photo";
+            const isCover = m.key === coverKey;
             return (
-              <div key={m.id} className={`group relative aspect-[4/3] overflow-hidden rounded-xl bg-sand ${kept ? "" : "opacity-40 grayscale"}`}>
-                <Image src={m.url} alt="" fill sizes="200px" className="object-cover" />
+              <div
+                key={m.key}
+                draggable
+                onDragStart={(ev) => {
+                  setDragKey(m.key);
+                  ev.dataTransfer.effectAllowed = "move";
+                  ev.dataTransfer.setData("text/plain", m.key);
+                }}
+                onDragOver={(ev) => {
+                  if (!dragKey) return;
+                  ev.preventDefault();
+                  if (dragKey !== m.key) moveItem(dragKey, i);
+                }}
+                onDragEnd={() => setDragKey(null)}
+                className={`group relative aspect-[4/3] cursor-grab overflow-hidden rounded-xl bg-sand transition active:cursor-grabbing ${dragKey === m.key ? "opacity-50 ring-2 ring-brand-gold" : ""} ${isCover ? "ring-2 ring-brand-green" : ""}`}
+              >
+                {m.status === "saved" ? (
+                  <Image src={m.preview} alt="" fill sizes="200px" draggable={false} className="object-cover" />
+                ) : m.kind === "video" ? (
+                  <video src={m.preview} muted playsInline preload="metadata" className={`h-full w-full object-cover ${m.status === "done" ? "" : "opacity-40"}`} />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element -- local blob preview
+                  <img src={m.preview} alt="" draggable={false} className={`h-full w-full object-cover ${m.status === "done" ? "" : "opacity-40"}`} />
+                )}
+                {m.kind === "video" && m.status !== "uploading" && (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center">
+                    <span className="grid h-10 w-10 place-items-center rounded-full bg-black/55 text-white">
+                      <Play className="h-4 w-4 translate-x-px" fill="currentColor" strokeWidth={0} />
+                    </span>
+                  </span>
+                )}
+                {m.status === "uploading" && (
+                  <span className="absolute inset-0 grid place-items-center" role="status" aria-label={`Uploading ${label}`}>
+                    <Loader size="md" className="loader-brand" />
+                  </span>
+                )}
+                {m.status === "error" ? (
+                  <span className="chip absolute bottom-2 left-2 bg-danger text-white">Upload failed</span>
+                ) : isCover ? (
+                  <span className="chip absolute bottom-2 left-2 bg-brand-green text-white">
+                    <Star className="h-3 w-3" fill="currentColor" strokeWidth={0} /> Cover
+                  </span>
+                ) : m.kind === "video" ? (
+                  <span className="chip absolute bottom-2 left-2 bg-black/60 text-white">Video</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => moveItem(m.key, 0)}
+                    className="chip absolute bottom-2 left-2 bg-white/90 text-ink shadow transition hover:bg-brand-green hover:text-white"
+                  >
+                    <Star className="h-3 w-3" strokeWidth={2} /> Set as cover
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setKeep((k) => (kept ? k.filter((x) => x !== m.id) : [...k, m.id]))}
+                  onClick={() => setItems((cur) => cur.filter((x) => x.key !== m.key))}
                   className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-ink shadow"
-                  aria-label={kept ? "Remove photo" : "Keep photo"}
+                  aria-label={`Remove ${label}`}
                 >
-                  {kept ? <Trash2 className="h-4 w-4" strokeWidth={1.8} /> : <Undo2 className="h-4 w-4" strokeWidth={1.8} />}
+                  <Trash2 className="h-4 w-4" strokeWidth={1.8} />
                 </button>
               </div>
             );
           })}
-          {uploads.map((u, i) => (
-            <div key={u.key} className="relative aspect-[4/3] overflow-hidden rounded-xl bg-sand">
-              {/* eslint-disable-next-line @next/next/no-img-element -- local blob preview */}
-              <img src={u.preview} alt="" className={`h-full w-full object-cover ${u.status === "done" ? "" : "opacity-40"}`} />
-              {u.status === "uploading" && (
-                <span className="absolute inset-0 grid place-items-center" role="status" aria-label="Uploading photo">
-                  <Loader size="md" className="loader-brand" />
-                </span>
-              )}
-              {u.status === "error" && <span className="chip absolute bottom-2 left-2 bg-danger text-white">Upload failed</span>}
-              {u.status === "done" && i === 0 && keep.length === 0 && <span className="chip absolute bottom-2 left-2 bg-brand-green text-white">Cover</span>}
-              <button
-                type="button"
-                onClick={() => setUploads((cur) => cur.filter((x) => x.key !== u.key))}
-                className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 text-ink shadow"
-                aria-label="Remove photo"
-              >
-                <Trash2 className="h-4 w-4" strokeWidth={1.8} />
-              </button>
-            </div>
-          ))}
-          {photoCount < MAX_PHOTOS && (
-            <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-green/30 bg-brand-green-50/50 text-sm font-semibold text-brand-green transition hover:border-brand-green hover:bg-brand-green-50">
+          {(photoCount < MAX_PHOTOS || videoCount < MAX_VIDEOS) && (
+            <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-green/30 bg-brand-green-50/50 px-2 text-center text-sm font-semibold text-brand-green transition hover:border-brand-green hover:bg-brand-green-50">
               <ImagePlus className="h-7 w-7" strokeWidth={1.4} />
-              Add photos
-              <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(ev) => { addFiles(ev.target.files); ev.target.value = ""; }} />
+              Add photos or videos
+              <input
+                type="file"
+                accept={[...PHOTO_TYPES, ...VIDEO_TYPES].join(",")}
+                multiple
+                className="sr-only"
+                onChange={(ev) => {
+                  addFiles(ev.target.files);
+                  ev.target.value = "";
+                }}
+              />
             </label>
           )}
         </div>
-        <p className={e.photos ? "field-error" : "hint"}>{e.photos ?? `${photoCount} of ${MAX_PHOTOS} photos · JPG, PNG or WebP, up to 10 MB each`}</p>
+        <p className={e.photos ? "field-error" : "hint"}>
+          {e.photos ??
+            `${photoCount} of ${MAX_PHOTOS} photos · ${videoCount} of ${MAX_VIDEOS} videos · Photos: JPG, PNG or WebP up to 10 MB · Videos: MP4, MOV or WebM up to 100 MB`}
+        </p>
       </Section>
 
       <Section n={5} title="Describe it" hint="A few honest lines help buyers decide to call.">

@@ -12,7 +12,7 @@ import {
   type LeadStage,
   type UserRole,
 } from "./constants";
-import { slugify } from "./format";
+import { slugify, videoPoster } from "./format";
 import { fetchAll, row, rows, sb, total } from "./supabase";
 import type { ActivityLog, Area, Lead, LeadActivity, Notification, Profile, Project, ProjectReview, PropertyType } from "./types";
 
@@ -46,7 +46,8 @@ function toView(r: ProjectRecord): ProjectView {
     carpet_area_sqft: Number(r.carpet_area_sqft),
     media,
     lister: r.lister ?? { id: r.lister_id, full_name: "Unknown", role: "owner", company_name: null, agent_rera_no: null, created_at: "" },
-    cover: media[0]?.url ?? null,
+    // The cover is the first photo; a listing with only a video falls back to a still from it.
+    cover: media.find((m) => m.kind === "image")?.url ?? (media[0]?.kind === "video" ? videoPoster(media[0].url) : null),
   };
 }
 

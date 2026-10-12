@@ -73,7 +73,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
     "@type": "RealEstateListing",
     name: p.title,
     description: p.description,
-    image: p.media.map((m) => m.url),
+    image: p.media.filter((m) => m.kind === "image").map((m) => m.url),
     datePosted: p.verified_at ?? p.created_at,
     offers: { "@type": "Offer", price: p.price, priceCurrency: "INR" },
     address: { "@type": "PostalAddress", streetAddress: p.address_line, addressLocality: p.area.name, addressRegion: "Maharashtra", addressCountry: "IN" },

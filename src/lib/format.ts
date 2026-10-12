@@ -68,6 +68,11 @@ export function initials(name: string): string {
     .join("");
 }
 
+/** A still frame of a Cloudinary video: the same address with a .jpg ending. */
+export function videoPoster(url: string): string {
+  return url.replace(/\.[a-z0-9]+$/i, ".jpg");
+}
+
 export function maskPhone(phone: string): string {
   return `${phone.slice(0, 2)}••••••${phone.slice(-2)}`;
 }
