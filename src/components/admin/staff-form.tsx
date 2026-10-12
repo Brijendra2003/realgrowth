@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createStaffAction } from "@/actions/admin";
 import { Field, FormAlert } from "@/components/ui/field";
+import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import type { ActionState } from "@/lib/types";
 
@@ -24,7 +25,7 @@ export function StaffForm() {
         </select>
       </Field>
       <Field label="Temporary password" htmlFor="s-pass" error={e.password} hint="Share it privately; they can sign in at /admin/login.">
-        <input id="s-pass" name="password" type="password" className="input" autoComplete="new-password" />
+        <PasswordInput id="s-pass" name="password" autoComplete="new-password" />
       </Field>
       <SubmitButton className="btn btn-primary w-full" pendingText="Adding…">Add team member</SubmitButton>
     </form>

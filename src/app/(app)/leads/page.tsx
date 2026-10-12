@@ -29,7 +29,7 @@ export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
 
   return (
     <>
-      <PageTitle eyebrow="Leads inbox" title="Your buyers" description={`${total} enquiries across ${projects.length} properties. Buyers who enquired on 2+ of your properties are grouped and shown first.`} />
+      <PageTitle eyebrow="Leads inbox" title="Your buyers" description={`${total} ${total === 1 ? "enquiry" : "enquiries"} across ${projects.length} ${projects.length === 1 ? "property" : "properties"}. Buyers who enquired on 2+ of your properties are grouped and shown first.`} />
 
       {/* Pipeline */}
       <div className="card mb-6 grid grid-cols-3 gap-px overflow-hidden bg-line sm:grid-cols-6">
@@ -76,7 +76,11 @@ export default async function LeadsPage({ searchParams }: PageProps<"/leads">) {
       </AutoSubmitGet>
 
       {groups.length === 0 ? (
-        <EmptyState icon={Inbox} title="No leads match" body="Try clearing the filters." action={<Link href="/leads" className="btn btn-outline">Clear filters</Link>} />
+        total === 0 ? (
+          <EmptyState icon={Inbox} title="No leads yet" body="Once your property is live, buyer enquiries show up here." />
+        ) : (
+          <EmptyState icon={Inbox} title="No leads match" body="Try clearing the filters." action={<Link href="/leads" className="btn btn-outline">Clear filters</Link>} />
+        )
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (

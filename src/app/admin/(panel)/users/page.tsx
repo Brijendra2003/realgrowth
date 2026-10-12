@@ -23,7 +23,7 @@ export default async function UsersPage({ searchParams }: PageProps<"/admin/user
   const users = await getAllUsers(f);
   return (
     <>
-      <PageTitle eyebrow="Moderation" title="Users" description={`${users.length} buyers and listers${canBlock ? "" : " · only admins can block accounts"}`} />
+      <PageTitle eyebrow="Moderation" title="Users" description={`${users.length} ${users.length === 1 ? "account" : "accounts"} · buyers and listers${canBlock ? "" : " · only admins can block accounts"}`} />
       <AutoSubmitGet action="/admin/users" className="mb-5 flex flex-col gap-3 sm:flex-row">
         <input name="q" defaultValue={f.q} placeholder="Search name, phone, email or company…" className="input sm:max-w-sm" />
         <select name="role" defaultValue={f.role ?? ""} className="input sm:max-w-[12rem]">

@@ -21,6 +21,7 @@ import {
 import { HeroSearch } from "@/components/project/hero-search";
 import { ProjectCard } from "@/components/project/project-card";
 import { LeafSprig, Ornament, SectionHeading, Sparkle } from "@/components/ui/decor";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getSessionUser } from "@/lib/auth";
 import { slugify } from "@/lib/format";
 import { getHomeStats, getNewestProjects, getSavedProjects } from "@/lib/queries";
@@ -55,7 +56,6 @@ export default async function HomePage() {
       <section className="grain relative overflow-hidden">
         <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-brand-cream/50 blur-3xl" />
         <div className="pointer-events-none absolute right-0 top-0 h-[34rem] w-[34rem] rounded-full bg-sage/70 blur-3xl" />
-        <LeafSprig className="absolute left-2 top-16 hidden h-56 -rotate-12 text-brand-green/40 xl:block" />
 
         <div className="container-page relative grid grid-cols-1 items-center gap-12 pb-16 pt-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] lg:pb-24 lg:pt-16">
           <div className="animate-fade-up">
@@ -64,7 +64,9 @@ export default async function HomePage() {
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-gold opacity-70" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-gold" />
               </span>
-              {stats.liveCount} verified listings live today
+              {stats.liveCount > 0
+                ? `${stats.liveCount} verified ${stats.liveCount === 1 ? "listing" : "listings"} live today`
+                : "Every listing verified before it goes live"}
             </p>
             <h1 className="mt-5 text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-6xl lg:text-[4.1rem]">
               Find a home
@@ -141,7 +143,7 @@ export default async function HomePage() {
                 </span>
                 <p className="mt-3 font-display font-semibold">{c.label}</p>
                 <p className="mt-0.5 text-xs text-muted">{c.body}</p>
-                {c.count !== undefined && <p className="mt-2 text-xs font-semibold text-brand-green">{c.count} live</p>}
+                {!!c.count && <p className="mt-2 text-xs font-semibold text-brand-green">{c.count} live</p>}
               </Link>
             ))}
           </div>
@@ -155,18 +157,31 @@ export default async function HomePage() {
             eyebrow="Fresh on Real Growth"
             title="Newest verified"
             accent="properties."
-            description="Approved by our team in the last few days. Newest first."
+            description={newest.length ? "Approved by our team in the last few days. Newest first." : "Each property appears here as soon as our team has checked it."}
             action={
-              <Link href="/projects" className="btn btn-outline shrink-0">
-                View all {stats.liveCount} <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </Link>
+              newest.length > 0 && (
+                <Link href="/projects" className="btn btn-outline shrink-0">
+                  View all {stats.liveCount} <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </Link>
+              )
             }
           />
-          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {newest.map((p, i) => (
-              <ProjectCard key={p.id} p={p} saved={user ? savedIds.has(p.id) : undefined} priority={i < 3} />
-            ))}
-          </div>
+          {newest.length === 0 ? (
+            <div className="mt-10">
+              <EmptyState
+                icon={HomeIcon}
+                title="The first listings are being verified"
+                body="Have a flat, shop or plot between Mira Road and Dahanu Road? List it free and be among the first homes buyers see."
+                action={<Link href="/list-project" className="btn btn-primary">List your property <ArrowRight className="h-4 w-4" strokeWidth={2} /></Link>}
+              />
+            </div>
+          ) : (
+            <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {newest.map((p, i) => (
+                <ProjectCard key={p.id} p={p} saved={user ? savedIds.has(p.id) : undefined} priority={i < 3} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -192,11 +207,13 @@ export default async function HomePage() {
                   href={`/projects?zone=${slugify(z.zone)}`}
                   className="group rounded-2xl border border-white/10 bg-white/[0.06] p-5 transition hover:border-brand-gold/50 hover:bg-white/10"
                 >
-                  <p className="font-display text-3xl font-semibold text-white">{z.count}</p>
-                  <p className="text-xs uppercase tracking-wider text-brand-cream/70">live listings</p>
+                  <p className="font-display text-3xl font-semibold text-white">{z.count || z.areaNames.length}</p>
+                  <p className="text-xs uppercase tracking-wider text-brand-cream/70">
+                    {z.count ? (z.count === 1 ? "live listing" : "live listings") : "areas covered"}
+                  </p>
                   <p className="mt-3 font-semibold text-brand-gold">{z.zone}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-brand-cream/70">
-                    {z.topAreas.length ? z.topAreas.map((a) => a.name).join(" · ") : "Coming soon"}
+                    {(z.topAreas.length ? z.topAreas.map((a) => a.name) : z.areaNames.slice(0, 4)).join(" · ")}
                   </p>
                   <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-white">
                     Explore <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" strokeWidth={2} />
@@ -280,10 +297,10 @@ export default async function HomePage() {
           </div>
           <div className="card relative grid grid-cols-2 overflow-hidden p-2">
             {[
-              { v: stats.liveCount, l: "Verified listings" },
+              stats.liveCount > 0 ? { v: stats.liveCount, l: "Verified listings" } : { v: STATIONS.length, l: "Stations on our line" },
               { v: stats.areaCount, l: "Areas covered" },
               { v: "100%", l: "Projects MahaRERA checked" },
-              { v: stats.listerCount, l: "Developers, owners & brokers" },
+              stats.listerCount > 0 ? { v: stats.listerCount, l: "Developers, owners & brokers" } : { v: "₹0", l: "Cost to list a property" },
             ].map((s, i) => (
               <div key={s.l} className={`p-8 text-center ${i < 2 ? "border-b border-line" : ""} ${i % 2 === 0 ? "border-r border-line" : ""}`}>
                 <p className="font-display text-5xl font-semibold tracking-tight text-brand-green">{s.v}</p>

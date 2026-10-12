@@ -1,5 +1,17 @@
 import "server-only";
-import { ALL_BUDGETS, LEAD_STAGES, LISTER_ROLES, OPEN_STAGES, STAFF_ROLES, type LeadStage, type UserRole } from "./constants";
+import {
+  ALL_BUDGETS,
+  ALL_ROLES,
+  CATEGORIES,
+  CONFIGURATIONS,
+  LEAD_STAGES,
+  LISTER_ROLES,
+  OPEN_STAGES,
+  PROJECT_STATUSES,
+  STAFF_ROLES,
+  type LeadStage,
+  type UserRole,
+} from "./constants";
 import { slugify } from "./format";
 import { fetchAll, row, rows, sb, total } from "./supabase";
 import type { ActivityLog, Area, Lead, LeadActivity, Notification, Profile, Project, ProjectReview, PropertyType } from "./types";
@@ -50,7 +62,11 @@ function toLeadRow(r: LeadRecord): LeadRow {
   return { ...r, project: { ...p, price: Number(p.price), area: area?.name ?? "", cover } };
 }
 
-const newestFirst = (a: { created_at: string }, b: { created_at: string }) => b.created_at.localeCompare(a.created_at);
+// Filters and ids come from the URL. Anything the database would reject is dropped here, so a mistyped link shows an empty page or a 404 instead of an error.
+const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+const oneOf = (list: readonly string[], v: string | undefined) => (v && list.includes(v) ? v : undefined);
+
+const newestFirst =(a: { created_at: string }, b: { created_at: string }) => b.created_at.localeCompare(a.created_at);
 
 /* ───────────── Reference data ───────────── */
 
@@ -108,13 +124,15 @@ export async function searchProjects(f: SearchFilters) {
   }
 
   const budget = ALL_BUDGETS.find((b) => b.value === f.budget);
+  const category = oneOf(CATEGORIES, f.category);
+  const config = oneOf(CONFIGURATIONS, f.config);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the query builder's generic type changes with every call
   const filtered = <Q extends { eq: any; in: any; gte: any; lte: any; or: any }>(query: Q): Q => {
     let q = query.eq("status", "verified");
     if (f.segment === "residential" || f.segment === "commercial") q = q.eq("segment", f.segment);
-    if (f.category) q = q.eq("category", f.category);
+    if (category) q = q.eq("category", category);
     if (f.purpose === "sale" || f.purpose === "rent") q = q.eq("purpose", f.purpose);
-    if (f.config) q = q.eq("configuration", f.config);
+    if (config) q = q.eq("configuration", config);
     if (f.area) q = q.in("area_id", idList(allAreas.filter((a) => slugify(a.name) === f.area).map((a) => a.id)));
     if (f.zone) q = q.in("area_id", idList(allAreas.filter((a) => slugify(a.zone) === f.zone).map((a) => a.id)));
     if (f.type) q = q.in("property_type_id", idList(propertyTypes.filter((t) => t.slug === f.type).map((t) => t.id)));
@@ -187,6 +205,7 @@ export async function getHomeStats() {
     zones: [...zones.values()].map((z) => ({
       zone: z.zone,
       count: z.count,
+      areaNames: allAreas.filter((a) => a.zone === z.zone && a.is_active).map((a) => a.name),
       topAreas: [...z.areas.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name, count]) => ({ name, count })),
     })),
   };
@@ -261,6 +280,7 @@ export async function getListerProjects(listerId: string) {
 }
 
 export async function getOwnProject(listerId: string, projectId: string) {
+  if (!isUuid(projectId)) return null;
   const db = await sb();
   const record = row<ProjectRecord>(await db.from("projects").select(PROJECT_SELECT).eq("id", projectId).eq("lister_id", listerId).maybeSingle());
   return record ? toView(record) : null;
@@ -339,6 +359,7 @@ export type LeadDetail = {
 };
 
 export async function getLeadDetail(leadId: string, viewer: { id: string; role: UserRole }): Promise<LeadDetail | null> {
+  if (!isUuid(leadId)) return null;
   const db = await sb();
   const record = row<LeadRecord>(await db.from("leads").select(LEAD_SELECT).eq("id", leadId).maybeSingle());
   if (!record) return null;
@@ -507,6 +528,7 @@ export async function getVerificationQueue() {
 }
 
 export async function getProjectForReview(id: string) {
+  if (!isUuid(id)) return null;
   const db = await sb();
   const record = row<ProjectRecord>(await db.from("projects").select(PROJECT_SELECT).eq("id", id).maybeSingle());
   if (!record) return null;
@@ -528,7 +550,8 @@ export async function getProjectForReview(id: string) {
 export async function getAllProjects(f: { status?: string; q?: string } = {}) {
   const db = await sb();
   let query = db.from("projects").select(PROJECT_SELECT).order("updated_at", { ascending: false }).limit(500);
-  if (f.status) query = query.eq("status", f.status);
+  const status = oneOf(PROJECT_STATUSES, f.status);
+  if (status) query = query.eq("status", status);
   const [projectRes, leads] = await Promise.all([query, allLeadFacts()]);
   let items = rows<ProjectRecord>(projectRes).map((r) => ({ ...toView(r), leadCount: leads.filter((l) => l.project_id === r.id).length }));
   if (f.q) {
@@ -541,7 +564,8 @@ export async function getAllProjects(f: { status?: string; q?: string } = {}) {
 export async function getAllUsers(f: { role?: string; q?: string } = {}) {
   const db = await sb();
   let query = db.from("profiles").select(PROFILE_COLS).not("role", "in", `(${STAFF_ROLES.join(",")})`).order("created_at", { ascending: false }).limit(1000);
-  if (f.role) query = query.eq("role", f.role);
+  const role = oneOf(ALL_ROLES, f.role);
+  if (role) query = query.eq("role", role);
   const [profileRes, projects, leads] = await Promise.all([
     query,
     fetchAll<Pick<Project, "lister_id">>((from, to) => db.from("projects").select("lister_id").order("id").range(from, to)),
@@ -561,10 +585,11 @@ export async function getAllUsers(f: { role?: string; q?: string } = {}) {
 
 export async function getAllLeadGroups(f: { stage?: string; repeat?: string } = {}) {
   const db = await sb();
+  const stage = oneOf(LEAD_STAGES, f.stage);
   const records = await fetchAll<LeadRecord>((from, to) => {
     let query = db.from("leads").select(LEAD_SELECT);
     if (f.stage === "open") query = query.in("stage", OPEN_STAGES);
-    else if (f.stage) query = query.eq("stage", f.stage);
+    else if (stage) query = query.eq("stage", stage);
     return query.order("id").range(from, to);
   });
   const grouped = groupByBuyer(records.map(toLeadRow));
@@ -591,10 +616,11 @@ const ACTIVITY_GROUPS = ["user", "project", "lead", "staff", "area"];
 export async function getActivity(f: { role?: string; action?: string; q?: string; range?: string } = {}) {
   const db = await sb();
   const action = f.action && /^[a-z_.]+$/.test(f.action) ? f.action : undefined;
+  const role = oneOf(ALL_ROLES, f.role);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the query builder's generic type changes with every call
   const filtered = <Q extends { eq: any; like: any; gte: any }>(query: Q): Q => {
     let q = query;
-    if (f.role) q = q.eq("actor_role", f.role);
+    if (role) q = q.eq("actor_role", role);
     if (action) q = q.like("action", `${action}%`);
     const days = Number(f.range);
     if (days > 0) q = q.gte("created_at", new Date(Date.now() - days * 86_400_000).toISOString());

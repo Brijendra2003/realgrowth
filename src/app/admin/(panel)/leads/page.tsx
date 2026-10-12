@@ -35,7 +35,11 @@ export default async function AdminLeadsPage({ searchParams }: PageProps<"/admin
         </select>
       </AutoSubmitGet>
       {groups.length === 0 ? (
-        <EmptyState icon={Inbox} title="No leads match" />
+        f.stage || f.repeat ? (
+          <EmptyState icon={Inbox} title="No leads match" body="Try clearing the filters." action={<Link href="/admin/leads" className="btn btn-outline">Clear filters</Link>} />
+        ) : (
+          <EmptyState icon={Inbox} title="No leads yet" body="Buyer enquiries show up here as soon as they are sent." />
+        )
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (

@@ -17,6 +17,7 @@ import {
   type ListingCategory,
   type Purpose,
   type Segment,
+  type UserRole,
 } from "@/lib/constants";
 import { formatPrice } from "@/lib/format";
 import type { ActionState, Area, Project, PropertyType } from "@/lib/types";
@@ -25,6 +26,7 @@ type Props = {
   areas: Area[];
   propertyTypes: PropertyType[];
   project?: Project;
+  role?: UserRole;
 };
 
 const CATEGORY_TO_STATUS: Record<ListingCategory, ConstructionStatus> = {
@@ -84,7 +86,9 @@ function Toggle<T extends string>({ name, value, onChange, options }: { name: st
   );
 }
 
-export function ProjectForm({ areas, propertyTypes, project }: Props) {
+export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
+  // An owner is selling or renting out a home they already hold, so a new listing starts as resale.
+  const startCategory: ListingCategory = role === "owner" ? "resale" : "new_project";
   const [state, action] = useActionState<ActionState, FormData>(saveProjectAction, {});
   const e = state.errors ?? {};
   const v = state.values ?? {};
@@ -92,8 +96,10 @@ export function ProjectForm({ areas, propertyTypes, project }: Props) {
 
   const [purpose, setPurpose] = useState<Purpose>((pick("purpose", "sale") as Purpose) || "sale");
   const [segment, setSegment] = useState<Segment>((pick("segment", "residential") as Segment) || "residential");
-  const [category, setCategory] = useState<ListingCategory>((pick("category", "new_project") as ListingCategory) || "new_project");
-  const [status, setStatus] = useState<ConstructionStatus>((pick("construction_status", "under_construction") as ConstructionStatus) || "under_construction");
+  const [category, setCategory] = useState<ListingCategory>((pick("category", startCategory) as ListingCategory) || startCategory);
+  const [status, setStatus] = useState<ConstructionStatus>(
+    (pick("construction_status", CATEGORY_TO_STATUS[startCategory]) as ConstructionStatus) || CATEGORY_TO_STATUS[startCategory],
+  );
   const [price, setPrice] = useState(pick("price"));
   const [amenities, setAmenities] = useState<string[]>(project?.amenities ?? []);
   const [keep, setKeep] = useState<string[]>(project?.media.map((m) => m.id) ?? []);

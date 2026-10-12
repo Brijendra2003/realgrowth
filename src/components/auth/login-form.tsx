@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { ArrowRight } from "lucide-react";
 import { loginAction } from "@/actions/auth";
 import { Field, FormAlert } from "@/components/ui/field";
+import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Turnstile } from "@/components/ui/turnstile";
 import type { ActionState } from "@/lib/types";
@@ -35,7 +36,7 @@ export function LoginForm({ next, staff = false }: { next?: string; staff?: bool
       </Field>
 
       <Field label="Password" htmlFor="password" error={e.password}>
-        <input id="password" name="password" type="password" autoComplete="current-password" className="input" aria-invalid={!!e.password} />
+        <PasswordInput id="password" name="password" autoComplete="current-password" aria-invalid={!!e.password} />
       </Field>
 
       <Turnstile action={staff ? "staff-login" : "login"} resetOn={state} />

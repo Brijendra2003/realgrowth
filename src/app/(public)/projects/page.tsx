@@ -10,6 +10,7 @@ import {
   AREA_ZONES,
   BUDGETS_RENT,
   BUDGETS_SALE,
+  CATEGORIES,
   CATEGORY_SHORT,
   CONFIGURATIONS,
   PROPERTY_TYPES,
@@ -36,6 +37,9 @@ function pick(sp: Record<string, string | string[] | undefined>): SearchFilters 
     const s = Array.isArray(v) ? v[0] : v;
     if (s) f[k] = s;
   }
+  // Drop values that aren't real options, so a mistyped link doesn't show as a filter.
+  if (f.category && !(CATEGORIES as readonly string[]).includes(f.category)) delete f.category;
+  if (f.config && !CONFIGURATIONS.includes(f.config)) delete f.config;
   return f;
 }
 
@@ -86,7 +90,13 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
           </nav>
           <h1 className="mt-3 text-3xl font-semibold sm:text-4xl">{heading}</h1>
           <p className="mt-2 text-ink-soft">
-            <strong className="text-brand-green">{total}</strong> verified {total === 1 ? "listing" : "listings"} · every one checked by our team
+            {total > 0 ? (
+              <>
+                <strong className="text-brand-green">{total}</strong> verified {total === 1 ? "listing" : "listings"} · every one checked by our team
+              </>
+            ) : (
+              "Every listing is checked by our team before it goes live"
+            )}
           </p>
 
           <form action="/projects" method="get" className="mt-6 flex max-w-2xl gap-2">
@@ -249,12 +259,21 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
 
           {items.length === 0 ? (
             <div className="mt-6">
-              <EmptyState
-                icon={SearchX}
-                title="No properties match these filters"
-                body="Try a nearby area or a wider budget. New listings are added every day."
-                action={<Link href="/projects" className="btn btn-primary">See all properties</Link>}
-              />
+              {chips.length > 0 ? (
+                <EmptyState
+                  icon={SearchX}
+                  title="No properties match these filters"
+                  body="Try a nearby area or a wider budget. New listings are added as soon as our team has checked them."
+                  action={<Link href="/projects" className="btn btn-primary">See all properties</Link>}
+                />
+              ) : (
+                <EmptyState
+                  icon={SearchX}
+                  title="The first listings are being verified"
+                  body="Properties appear here as soon as our team has checked them. Have one to sell or rent out? Listing is free."
+                  action={<Link href="/list-project" className="btn btn-primary">List your property</Link>}
+                />
+              )}
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">

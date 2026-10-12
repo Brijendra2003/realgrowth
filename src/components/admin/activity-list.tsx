@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Building2, CircleUserRound, Flag, Inbox, KeyRound, MapPinned, ShieldCheck } from "lucide-react";
 import { RoleChip } from "@/components/ui/chips";
+import { LEAD_STAGE_LABELS, ROLE_LABELS, type LeadStage, type UserRole } from "@/lib/constants";
 import { formatDateTime, timeAgo } from "@/lib/format";
 import type { ActivityLog } from "@/lib/types";
 
@@ -14,11 +15,15 @@ const ICONS: Record<string, typeof Inbox> = {
   area: MapPinned,
 };
 
+// The log stores raw keys ("super_admin", "site_visit_done"); show the same labels as the rest of the app.
+const roleName = (v: unknown) => (typeof v === "string" ? (ROLE_LABELS[v as UserRole] ?? v) : undefined);
+const stageName = (v: unknown) => (typeof v === "string" ? (LEAD_STAGE_LABELS[v as LeadStage] ?? v) : "—");
+
 function describe(e: Entry): string {
   const m = e.metadata as Record<string, string | boolean | number | undefined>;
   switch (e.action) {
-    case "user.signup": return `signed up as ${m.role ?? "a user"}`;
-    case "user.login": return `signed in (${m.via})`;
+    case "user.signup": return `signed up as ${roleName(m.role) ?? "a user"}`;
+    case "user.login": return m.via ? `signed in (${m.via})` : "signed in";
     case "user.logout": return "signed out";
     case "user.blocked": return `blocked ${m.name}`;
     case "user.unblocked": return `unblocked ${m.name}`;
@@ -33,10 +38,10 @@ function describe(e: Entry): string {
     case "project.withdrawn": return `withdrew “${m.title}”`;
     case "lead.created": return `enquired on “${m.project}”`;
     case "lead.updated": return `enquired again on “${m.project}”`;
-    case "lead.stage_changed": return `moved a lead ${m.from} → ${m.to}`;
+    case "lead.stage_changed": return `moved a lead ${stageName(m.from)} → ${stageName(m.to)}`;
     case "lead.note_added": return "added a note to a lead";
     case "lead.followup_set": return "set a follow-up";
-    case "staff.created": return `added ${m.name} as ${m.role}`;
+    case "staff.created": return `added ${m.name} as ${roleName(m.role) ?? "staff"}`;
     case "staff.removed": return `removed ${m.name}`;
     case "area.created": return `added area ${m.name}`;
     case "area.hidden": return `hid area ${m.name}`;

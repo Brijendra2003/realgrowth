@@ -20,7 +20,7 @@ export default async function AdminProjectsPage({ searchParams }: PageProps<"/ad
   const items = await getAllProjects(f);
   return (
     <>
-      <PageTitle eyebrow="Moderation" title="All projects" description={`${items.length} listings`} />
+      <PageTitle eyebrow="Moderation" title="All projects" description={`${items.length} ${items.length === 1 ? "listing" : "listings"}`} />
       <AutoSubmitGet action="/admin/projects" className="mb-5 flex flex-col gap-3 sm:flex-row">
         <input name="q" defaultValue={f.q} placeholder="Search title, code, lister or area…" className="input sm:max-w-sm" />
         <select name="status" defaultValue={f.status ?? ""} className="input sm:max-w-[14rem]">
@@ -35,6 +35,13 @@ export default async function AdminProjectsPage({ searchParams }: PageProps<"/ad
             <tr><th>Project</th><th>Lister</th><th>Area</th><th className="text-right">Price</th><th className="text-right">Leads</th><th>Status</th><th>Updated</th></tr>
           </thead>
           <tbody>
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7} className="py-10 text-center text-sm text-muted">
+                  {f.q || f.status ? "No listings match this search." : "No listings yet. New ones show up here as soon as a lister submits them."}
+                </td>
+              </tr>
+            )}
             {items.map((p) => (
               <tr key={p.id}>
                 <td>

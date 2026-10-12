@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { ArrowRight, Building2, Check, Home, UserRound } from "lucide-react";
 import { signupAction } from "@/actions/auth";
 import { Field, FormAlert } from "@/components/ui/field";
+import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Turnstile } from "@/components/ui/turnstile";
 import { SIGNUP_ROLE_CARDS, type ListerRole } from "@/lib/constants";
@@ -67,7 +68,7 @@ export function SignupForm({ defaultRole, next }: { defaultRole?: ListerRole; ne
           <input id="email" name="email" type="email" className="input" autoComplete="email" defaultValue={v.email} />
         </Field>
         <Field label="Create a password" htmlFor="password" error={e.password} hint="At least 8 characters" className="sm:col-span-2">
-          <input id="password" name="password" type="password" className="input" autoComplete="new-password" aria-invalid={!!e.password} />
+          <PasswordInput id="password" name="password" autoComplete="new-password" aria-invalid={!!e.password} />
         </Field>
         {(role === "developer" || role === "broker") && (
           <Field label={role === "developer" ? "Company name" : "Firm name"} htmlFor="company_name" optional hint="You can add this later" className="animate-fade-up">
