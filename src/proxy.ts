@@ -2,7 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Optimistic route guard: only checks that a session cookie exists.
 // Real authorisation (role checks) happens on the server in each page and action.
-const SIGNED_IN = ["/dashboard", "/list-project", "/my-projects", "/leads", "/my-enquiries", "/profile", "/notifications", "/saved"];
+const SIGNED_IN = [
+  "/dashboard",
+  "/list-project",
+  "/my-projects",
+  "/leads",
+  "/my-enquiries",
+  "/profile",
+  "/notifications",
+  "/saved",
+  "/requirements",
+  "/matching-buyers",
+];
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -30,5 +41,7 @@ export const config = {
     "/profile/:path*",
     "/notifications/:path*",
     "/saved/:path*",
+    "/requirements/:path*",
+    "/matching-buyers/:path*",
   ],
 };

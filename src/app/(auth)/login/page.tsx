@@ -14,6 +14,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const next = typeof sp.next === "string" && sp.next.startsWith("/") && !sp.next.startsWith("//") ? sp.next : undefined;
   const user = await getSessionUser();
   if (user) redirect(next ?? homeFor(user.role));
+  // Someone on their way to post a requirement is a buyer, so preselect that card on sign-up.
+  const signupQuery = new URLSearchParams({ ...(next ? { next } : {}), ...(next?.startsWith("/requirements") ? { role: "buyer" } : {}) }).toString();
 
   return (
     <div className="w-full max-w-md animate-fade-up">
@@ -29,7 +31,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       </div>
       <p className="mt-6 text-center text-sm text-ink-soft">
         New to Real Growth?{" "}
-        <Link href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-semibold text-brand-green hover:underline">
+        <Link href={`/signup${signupQuery ? `?${signupQuery}` : ""}`} className="font-semibold text-brand-green hover:underline">
           Create a free account
         </Link>
       </p>

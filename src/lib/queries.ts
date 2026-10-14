@@ -13,8 +13,21 @@ import {
   type UserRole,
 } from "./constants";
 import { slugify, videoPoster } from "./format";
+import { MATCH_THRESHOLD, scoreMatch, type Match, type MatchableProject } from "./matching";
 import { fetchAll, row, rows, sb, total } from "./supabase";
-import type { ActivityLog, Area, Lead, LeadActivity, Notification, Profile, Project, ProjectReview, PropertyType } from "./types";
+import type {
+  ActivityLog,
+  Area,
+  Lead,
+  LeadActivity,
+  Notification,
+  Profile,
+  Project,
+  ProjectReview,
+  PropertyType,
+  Requirement,
+  RequirementContact,
+} from "./types";
 
 export type ListerSummary = Pick<Profile, "id" | "full_name" | "role" | "company_name" | "agent_rera_no" | "created_at">;
 export type PublicProfile = Omit<Profile, "password_hash">;
@@ -274,9 +287,11 @@ export async function getListerProjects(listerId: string) {
     db.from("projects").select(PROJECT_SELECT).eq("lister_id", listerId).order("updated_at", { ascending: false }),
     fetchAll<Pick<Lead, "project_id" | "stage">>((from, to) => db.from("leads").select("project_id,stage").eq("lister_id", listerId).order("id").range(from, to)),
   ]);
-  return rows<ProjectRecord>(projects).map((r) => {
-    const mine = leads.filter((l) => l.project_id === r.id);
-    return { ...toView(r), leadCount: mine.length, openLeads: mine.filter((l) => OPEN_STAGES.includes(l.stage)).length };
+  const views = rows<ProjectRecord>(projects).map(toView);
+  const { perProject } = await countMatchingBuyers(views);
+  return views.map((p) => {
+    const mine = leads.filter((l) => l.project_id === p.id);
+    return { ...p, leadCount: mine.length, openLeads: mine.filter((l) => OPEN_STAGES.includes(l.stage)).length, matchingBuyers: perProject[p.id] ?? 0 };
   });
 }
 
@@ -389,7 +404,9 @@ export async function getListerDashboard(listerId: string) {
     .sort((a, b) => a.when.localeCompare(b.when))
     .slice(0, 5);
   const groups = groupByBuyer(leads);
+  const { buyers: matchingBuyers } = await countMatchingBuyers(projects);
   return {
+    matchingBuyers,
     stats: {
       live: projects.filter((p) => p.status === "verified").length,
       review: projects.filter((p) => p.status === "unverified").length,
@@ -436,6 +453,238 @@ export async function getUnreadCount(userId: string) {
 export async function getProfile(userId: string) {
   const db = await sb();
   return row<PublicProfile>(await db.from("profiles").select(PROFILE_COLS).eq("id", userId).maybeSingle());
+}
+
+/* ───────────── Buyer requirements and matching (§3.5) ───────────── */
+
+const REQUIREMENT_COLS =
+  "id,buyer_id,purpose,segment,area_ids,property_type_ids,configurations,categories,budget_min,budget_max,min_carpet_sqft,note,is_active,created_at,updated_at";
+const CONTACT_COLS = "id,requirement_id,project_id,lister_id,match_percent,status,lead_id,created_at,responded_at";
+const MATCH_COLS = "id,lister_id,title,slug,purpose,segment,area_id,property_type_id,configuration,price,carpet_area_sqft,category";
+
+export type MatchFacts = MatchableProject & Pick<Project, "id" | "lister_id" | "title" | "slug">;
+
+function toRequirement(r: Requirement): Requirement {
+  return {
+    ...r,
+    budget_min: r.budget_min === null ? null : Number(r.budget_min),
+    budget_max: Number(r.budget_max),
+    min_carpet_sqft: r.min_carpet_sqft === null ? null : Number(r.min_carpet_sqft),
+  };
+}
+
+/** Every live listing, with only the fields matching needs. */
+async function liveMatchFacts() {
+  const db = await sb();
+  return fetchAll<MatchFacts>((from, to) => db.from("projects").select(MATCH_COLS).eq("status", "verified").order("id").range(from, to));
+}
+
+async function activeRequirements(excludeBuyer?: string) {
+  const db = await sb();
+  return (
+    await fetchAll<Requirement>((from, to) => {
+      let q = db.from("requirements").select(REQUIREMENT_COLS).eq("is_active", true);
+      if (excludeBuyer) q = q.neq("buyer_id", excludeBuyer);
+      return q.order("id").range(from, to);
+    })
+  ).map(toRequirement);
+}
+
+/** Live listings that match a requirement at or above the threshold, best first. Never the buyer's own listings. */
+export function matchesFor(r: Requirement, facts: MatchFacts[], areas: Area[]) {
+  const out: { project: MatchFacts; match: Match }[] = [];
+  for (const p of facts) {
+    if (p.lister_id === r.buyer_id) continue;
+    const match = scoreMatch(r, p, areas);
+    if (match && match.percent >= MATCH_THRESHOLD) out.push({ project: p, match });
+  }
+  return out.sort((a, b) => b.match.percent - a.match.percent);
+}
+
+export type RequirementSummary = Requirement & { matchCount: number; best: number; pendingContacts: number };
+
+export async function getBuyerRequirements(buyerId: string): Promise<RequirementSummary[]> {
+  const db = await sb();
+  const [reqRes, facts, { allAreas }] = await Promise.all([
+    db.from("requirements").select(REQUIREMENT_COLS).eq("buyer_id", buyerId).order("created_at", { ascending: false }),
+    liveMatchFacts(),
+    getReferenceData(),
+  ]);
+  const reqs = rows<Requirement>(reqRes).map(toRequirement);
+  const contacts = reqs.length
+    ? rows<Pick<RequirementContact, "requirement_id" | "status">>(
+        await db.from("requirement_contacts").select("requirement_id,status").in("requirement_id", reqs.map((r) => r.id)),
+      )
+    : [];
+  return reqs.map((r) => {
+    const m = matchesFor(r, facts, allAreas);
+    return {
+      ...r,
+      matchCount: m.length,
+      best: m[0]?.match.percent ?? 0,
+      pendingContacts: contacts.filter((c) => c.requirement_id === r.id && c.status === "pending").length,
+    };
+  });
+}
+
+export async function getOwnRequirement(buyerId: string, id: string) {
+  if (!isUuid(id)) return null;
+  const db = await sb();
+  const r = row<Requirement>(await db.from("requirements").select(REQUIREMENT_COLS).eq("id", id).eq("buyer_id", buyerId).maybeSingle());
+  return r ? toRequirement(r) : null;
+}
+
+export type ContactRequest = RequirementContact & { project: ProjectView };
+
+export async function getRequirementDetail(buyerId: string, id: string) {
+  const requirement = await getOwnRequirement(buyerId, id);
+  if (!requirement) return null;
+  const db = await sb();
+  const [facts, ref, contactRes] = await Promise.all([
+    liveMatchFacts(),
+    getReferenceData(),
+    db.from("requirement_contacts").select(`${CONTACT_COLS},project:projects(${PROJECT_SELECT})`).eq("requirement_id", id).order("created_at", { ascending: false }),
+  ]);
+  const matched = matchesFor(requirement, facts, ref.allAreas).slice(0, 60);
+  const byId = new Map<string, ProjectView>();
+  if (matched.length) {
+    const res = await db.from("projects").select(PROJECT_SELECT).in("id", matched.map((m) => m.project.id));
+    for (const p of rows<ProjectRecord>(res).map(toView)) byId.set(p.id, p);
+  }
+  const contacts = rows<RequirementContact & { project: ProjectRecord | null }>(contactRes)
+    .filter((c): c is RequirementContact & { project: ProjectRecord } => !!c.project)
+    .map((c) => ({ ...c, project: toView(c.project) }));
+  return {
+    requirement,
+    matches: matched.flatMap((m) => {
+      const project = byId.get(m.project.id);
+      return project ? [{ project, match: m.match }] : [];
+    }),
+    contacts,
+    ref,
+  };
+}
+
+/** What a lister sees about a matching buyer. Name and number appear only once the buyer accepts a contact request. */
+export type BuyerMatch = {
+  requirement: Requirement;
+  match: Match;
+  contact: RequirementContact | null;
+  buyer: { name: string; phone: string; email: string | null } | null;
+};
+
+export async function getListerMatches(listerId: string) {
+  const db = await sb();
+  const [projectRes, requirements, contactRes, ref] = await Promise.all([
+    db.from("projects").select(PROJECT_SELECT).eq("lister_id", listerId).eq("status", "verified").order("created_at", { ascending: false }),
+    activeRequirements(listerId),
+    db.from("requirement_contacts").select(CONTACT_COLS).eq("lister_id", listerId),
+    getReferenceData(),
+  ]);
+  const contacts = rows<RequirementContact>(contactRes);
+  const acceptedReqs = new Set(contacts.filter((c) => c.status === "accepted").map((c) => c.requirement_id));
+  const buyerIds = [...new Set(requirements.filter((r) => acceptedReqs.has(r.id)).map((r) => r.buyer_id))];
+  const buyers = new Map<string, Pick<Profile, "full_name" | "phone" | "email">>();
+  if (buyerIds.length) {
+    for (const p of rows<Pick<Profile, "id" | "full_name" | "phone" | "email">>(await db.from("profiles").select("id,full_name,phone,email").in("id", buyerIds))) {
+      buyers.set(p.id, p);
+    }
+  }
+
+  const projects = rows<ProjectRecord>(projectRes)
+    .map(toView)
+    .map((project) => {
+      const list: BuyerMatch[] = [];
+      for (const r of requirements) {
+        const match = scoreMatch(r, project, ref.allAreas);
+        if (!match || match.percent < MATCH_THRESHOLD) continue;
+        const b = acceptedReqs.has(r.id) ? buyers.get(r.buyer_id) : undefined;
+        list.push({
+          requirement: r,
+          match,
+          contact: contacts.find((c) => c.requirement_id === r.id && c.project_id === project.id) ?? null,
+          buyer: b ? { name: b.full_name, phone: b.phone, email: b.email } : null,
+        });
+      }
+      return { project, buyers: list.sort((a, b) => b.match.percent - a.match.percent || b.requirement.created_at.localeCompare(a.requirement.created_at)) };
+    });
+  return { projects, ref, total: new Set(projects.flatMap((p) => p.buyers.map((b) => b.requirement.id))).size };
+}
+
+/** Matching-buyer counts for a lister's listings (only live ones can match). */
+export async function countMatchingBuyers(projects: (MatchableProject & Pick<Project, "id" | "lister_id" | "status">)[]) {
+  const live = projects.filter((p) => p.status === "verified");
+  const perProject: Record<string, number> = {};
+  if (!live.length) return { perProject, buyers: 0 };
+  const [requirements, { allAreas }] = await Promise.all([activeRequirements(live[0]!.lister_id), getReferenceData()]);
+  const all = new Set<string>();
+  for (const p of live) {
+    const ids = requirements.filter((r) => (scoreMatch(r, p, allAreas)?.percent ?? 0) >= MATCH_THRESHOLD).map((r) => r.id);
+    perProject[p.id] = ids.length;
+    ids.forEach((id) => all.add(id));
+  }
+  return { perProject, buyers: all.size };
+}
+
+/** Active requirements that a newly live listing matches — for notifying those buyers. */
+export async function getRequirementsMatchingProject(projectId: string) {
+  const db = await sb();
+  const p = row<MatchFacts>(await db.from("projects").select(MATCH_COLS).eq("id", projectId).eq("status", "verified").maybeSingle());
+  if (!p) return { project: null, matches: [] };
+  const [requirements, { allAreas }] = await Promise.all([activeRequirements(p.lister_id), getReferenceData()]);
+  const matches = requirements
+    .map((r) => ({ requirement: r, percent: scoreMatch(r, p, allAreas)?.percent ?? 0 }))
+    .filter((m) => m.percent >= MATCH_THRESHOLD);
+  return { project: p, matches };
+}
+
+/** Live listings matching a requirement, best per lister — for notifying listers about a new buyer. */
+export async function getListersMatchingRequirement(r: Requirement) {
+  const [facts, { allAreas }] = await Promise.all([liveMatchFacts(), getReferenceData()]);
+  const best = new Map<string, { project: MatchFacts; percent: number }>();
+  for (const m of matchesFor(r, facts, allAreas)) {
+    if (!best.has(m.project.lister_id)) best.set(m.project.lister_id, { project: m.project, percent: m.match.percent });
+  }
+  return [...best.entries()].map(([listerId, m]) => ({ listerId, ...m }));
+}
+
+export async function getAllRequirements(f: { status?: string; q?: string } = {}) {
+  const db = await sb();
+  const [requirements, facts, ref, contacts] = await Promise.all([
+    fetchAll<Requirement>((from, to) => {
+      let q = db.from("requirements").select(REQUIREMENT_COLS);
+      if (f.status === "active") q = q.eq("is_active", true);
+      if (f.status === "paused") q = q.eq("is_active", false);
+      return q.order("created_at", { ascending: false }).order("id").range(from, to);
+    }).then((r) => r.map(toRequirement)),
+    liveMatchFacts(),
+    getReferenceData(),
+    fetchAll<Pick<RequirementContact, "requirement_id" | "status">>((from, to) => db.from("requirement_contacts").select("requirement_id,status").order("id").range(from, to)),
+  ]);
+  const buyerIds = [...new Set(requirements.map((r) => r.buyer_id))];
+  const buyers = new Map<string, Pick<Profile, "id" | "full_name" | "phone" | "email">>();
+  for (let i = 0; i < buyerIds.length; i += 200) {
+    for (const p of rows<Pick<Profile, "id" | "full_name" | "phone" | "email">>(await db.from("profiles").select("id,full_name,phone,email").in("id", buyerIds.slice(i, i + 200)))) {
+      buyers.set(p.id, p);
+    }
+  }
+  let items = requirements.map((r) => {
+    const m = matchesFor(r, facts, ref.allAreas);
+    const mine = contacts.filter((c) => c.requirement_id === r.id);
+    return {
+      ...r,
+      buyer: buyers.get(r.buyer_id) ?? { id: r.buyer_id, full_name: "Deleted account", phone: "", email: null },
+      matchCount: m.length,
+      top: m.slice(0, 3).map((x) => ({ id: x.project.id, title: x.project.title, percent: x.match.percent })),
+      contactsSent: mine.length,
+      contactsAccepted: mine.filter((c) => c.status === "accepted").length,
+    };
+  });
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    items = items.filter((r) => `${r.buyer.full_name} ${r.buyer.phone} ${r.note}`.toLowerCase().includes(q));
+  }
+  return { items, ref };
 }
 
 /* ───────────── Admin ───────────── */

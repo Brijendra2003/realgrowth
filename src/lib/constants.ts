@@ -20,8 +20,9 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
 };
 
-/** Only listers create accounts. Buyers enquire without signing in. */
-export const SIGNUP_ROLE_CARDS: { role: ListerRole; title: string; body: string }[] = [
+/** Enquiring never needs an account. Buyers sign up only to post a requirement. */
+export const SIGNUP_ROLE_CARDS: { role: PublicRole; title: string; body: string }[] = [
+  { role: "buyer", title: "I'm looking to buy or rent", body: "Post what you need and see how well every listing matches, in percent." },
   { role: "developer", title: "I'm a developer", body: "List new projects and towers, and get enquiries straight to your sales team." },
   { role: "owner", title: "I own a property to list", body: "Sell or rent out your flat, shop or plot — no middlemen needed." },
   { role: "broker", title: "I'm a broker / channel partner", body: "List properties for your clients and manage every lead in one place." },
@@ -29,6 +30,7 @@ export const SIGNUP_ROLE_CARDS: { role: ListerRole; title: string; body: string 
 
 export const isLister = (role?: UserRole | null): role is ListerRole =>
   !!role && (LISTER_ROLES as readonly string[]).includes(role);
+export const isBuyer = (role?: UserRole | null) => role === "buyer";
 export const isStaff = (role?: UserRole | null): role is StaffRole =>
   !!role && (STAFF_ROLES as readonly string[]).includes(role);
 
@@ -174,6 +176,7 @@ export const MAHARERA_REGEX = /^P99\d{9}$/;
 export const PHONE_REGEX = /^[6-9]\d{9}$/;
 export const MAX_PHOTOS = 15;
 export const MAX_VIDEOS = 2;
+export const MAX_REQUIREMENTS = 5;
 
 export const SITE = {
   name: "Real Growth",

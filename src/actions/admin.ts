@@ -6,6 +6,7 @@ import { logActivity, notify } from "@/lib/activity";
 import { requireStaff } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/constants";
 import { hashPassword } from "@/lib/password";
+import { getRequirementsMatchingProject } from "@/lib/queries";
 import { row, rows, sb, total } from "@/lib/supabase";
 import type { ActionState, Area, Profile, Project } from "@/lib/types";
 import { fieldErrors, formValues, staffSchema } from "@/lib/validators";
@@ -51,6 +52,13 @@ export async function reviewProjectAction(_: ActionState, fd: FormData): Promise
     decision === "verified" ? `/projects/${p.slug}` : `/my-projects/${p.id}/edit`,
   );
   await logActivity(staff, `project.${decision}`, { type: "project", id: p.id }, { title: p.title, reason: reason || undefined });
+  if (decision === "verified") {
+    // Buyers whose requirement this listing matches hear about it straight away.
+    const { matches } = await getRequirementsMatchingProject(p.id);
+    for (const m of matches) {
+      await notify(m.requirement.buyer_id, `New match — ${m.percent}%`, `${p.title} matches what you're looking for.`, `/requirements/${m.requirement.id}`);
+    }
+  }
   revalidatePath("/", "layout");
   redirect(`/admin/verification?done=${decision}`);
 }

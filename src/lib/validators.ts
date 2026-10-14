@@ -6,7 +6,7 @@ import {
   LEAD_STAGES,
   MAHARERA_REGEX,
   PHONE_REGEX,
-  LISTER_ROLES,
+  PUBLIC_ROLES,
   PURPOSES,
   SEGMENTS,
 } from "./constants";
@@ -27,7 +27,7 @@ const optionalEmail = z
   .nullable();
 
 export const signupSchema = z.object({
-  role: z.enum(LISTER_ROLES, { message: "Choose what describes you best" }),
+  role: z.enum(PUBLIC_ROLES, { message: "Choose what describes you best" }),
   full_name: z.string().trim().min(2, "Please enter your name").max(80),
   phone,
   email: optionalEmail,
@@ -89,6 +89,47 @@ export const enquirySchema = z.object({
   message: z.string().trim().max(1000).optional().transform((v) => v || ""),
   consent: z.literal("on", { message: "Please allow us to share your details with the lister" }),
 });
+
+const optionalNumber = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v ? Number(v.replace(/,/g, "")) : null))
+  .refine((v) => v === null || (Number.isFinite(v) && v > 0), "Enter a number");
+
+/** Budgets are typed in lakh for a purchase and in rupees a month for rent. */
+export const requirementSchema = z
+  .object({
+    purpose: z.enum(PURPOSES, { message: "Choose buy or rent" }),
+    segment: z.enum(SEGMENTS, { message: "Choose residential or commercial" }),
+    area_ids: z.array(z.coerce.number().int().positive()).min(1, "Pick at least one area").max(60),
+    property_type_ids: z.array(z.coerce.number().int().positive()).max(10).default([]),
+    configurations: z.array(z.enum(CONFIGURATIONS as [string, ...string[]])).max(10).default([]),
+    categories: z.array(z.enum(CATEGORIES)).max(3).default([]),
+    budget_min: optionalNumber,
+    budget_max: z
+      .string()
+      .trim()
+      .transform((v) => Number(v.replace(/,/g, "")))
+      .refine((v) => Number.isFinite(v) && v > 0, "Enter your highest budget"),
+    min_carpet_sqft: optionalNumber,
+    note: z.string().trim().max(1000).optional().transform((v) => v ?? ""),
+  })
+  .superRefine((v, ctx) => {
+    if (v.budget_min !== null && v.budget_min > v.budget_max) {
+      ctx.addIssue({ code: "custom", path: ["budget_min"], message: "The lowest budget is more than the highest" });
+    }
+  })
+  .transform((v) => {
+    const unit = v.purpose === "sale" ? 1_00_000 : 1;
+    return {
+      ...v,
+      budget_min: v.budget_min === null ? null : Math.round(v.budget_min * unit),
+      budget_max: Math.round(v.budget_max * unit),
+    };
+  });
+
+export type RequirementInput = z.infer<typeof requirementSchema>;
 
 export const leadStageSchema = z.object({
   lead_id: z.string().min(1),

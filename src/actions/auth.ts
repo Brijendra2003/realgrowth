@@ -21,6 +21,25 @@ function safeNext(next: FormDataEntryValue | null, fallback: string) {
   return n.startsWith("/") && !n.startsWith("//") && !n.startsWith("/admin/login") ? n : fallback;
 }
 
+/**
+ * Enquiries sent without an account carry only a phone number. Once that number
+ * has an account, they belong to it, so they show under "My enquiries".
+ */
+async function claimVisitorEnquiries(userId: string, phone: string) {
+  const db = await sb();
+  const [visitor, own] = await Promise.all([
+    db.from("leads").select("id,project_id,lister_id").is("buyer_id", null).eq("phone", phone),
+    db.from("leads").select("project_id").eq("buyer_id", userId),
+  ]);
+  if (visitor.error || own.error) return console.error(`[claim] ${(visitor.error ?? own.error)!.message}`);
+  // One lead per person per project: skip any project the account already enquired on, and the user's own listings.
+  const taken = new Set((own.data ?? []).map((l) => l.project_id as string));
+  const ids = (visitor.data ?? []).filter((l) => !taken.has(l.project_id) && l.lister_id !== userId).map((l) => l.id as string);
+  if (!ids.length) return;
+  const { error } = await db.from("leads").update({ buyer_id: userId }).in("id", ids);
+  if (error) console.error(`[claim] ${error.message}`);
+}
+
 export async function signupAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const values = formValues(fd);
   const parsed = signupSchema.safeParse(Object.fromEntries(fd));
@@ -52,6 +71,7 @@ export async function signupAction(_: ActionState, fd: FormData): Promise<Action
 
   const id = (data as { id: string }).id;
   await logActivity({ id, role: input.role }, "user.signup", { type: "profile", id }, { name: input.full_name, role: input.role });
+  await claimVisitorEnquiries(id, input.phone);
   await setSession(id);
   revalidatePath("/", "layout");
   redirect(safeNext(fd.get("next"), "/dashboard?welcome=1"));
@@ -83,6 +103,7 @@ export async function loginAction(_: ActionState, fd: FormData): Promise<ActionS
 
   await setSession(user.id);
   await logActivity({ id: user.id, role: user.role }, "user.login", { type: "profile", id: user.id });
+  if (!isStaff(user.role)) await claimVisitorEnquiries(user.id, phone);
   revalidatePath("/", "layout");
   redirect(safeNext(fd.get("next"), homeFor(user.role)));
 }

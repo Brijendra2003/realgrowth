@@ -91,6 +91,12 @@ export async function requireLister(next = "/dashboard"): Promise<SessionUser> {
   return user;
 }
 
+export async function requireBuyer(next = "/requirements"): Promise<SessionUser> {
+  const user = await requireUser(next);
+  if (user.role !== "buyer") redirect(isStaff(user.role) ? "/admin" : "/dashboard?notice=buyer-only");
+  return user;
+}
+
 export async function requireStaff(roles: UserRole[] = ["ops", "admin", "super_admin"]): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) redirect("/admin/login");

@@ -114,6 +114,36 @@ export type Notification = {
   created_at: string;
 };
 
+export type Requirement = {
+  id: string;
+  buyer_id: string;
+  purpose: Purpose;
+  segment: Segment;
+  area_ids: number[];
+  property_type_ids: number[]; // empty: any type
+  configurations: string[]; // empty: any size
+  categories: ListingCategory[]; // empty: any category
+  budget_min: number | null;
+  budget_max: number;
+  min_carpet_sqft: number | null;
+  note: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RequirementContact = {
+  id: string;
+  requirement_id: string;
+  project_id: string;
+  lister_id: string;
+  match_percent: number;
+  status: "pending" | "accepted" | "declined";
+  lead_id: string | null;
+  created_at: string;
+  responded_at: string | null;
+};
+
 export type ActivityLog = {
   id: number;
   actor_id: string | null;

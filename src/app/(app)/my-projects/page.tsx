@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { Building2, Eye, Inbox, MapPin, Pencil, Plus } from "lucide-react";
+import { Building2, Eye, Inbox, MapPin, Pencil, Plus, UsersRound } from "lucide-react";
 import { setProjectStatusAction } from "@/actions/projects";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ProjectStatusChip } from "@/components/ui/chips";
@@ -62,6 +62,11 @@ export default async function MyProjectsPage({ searchParams }: PageProps<"/my-pr
                   <Link href={`/leads?project=${p.id}`} className="flex items-center gap-1.5 font-medium text-brand-green hover:underline">
                     <Inbox className="h-4 w-4" /> {p.leadCount} leads{p.openLeads ? ` (${p.openLeads} open)` : ""}
                   </Link>
+                  {p.matchingBuyers > 0 && (
+                    <Link href={`/matching-buyers?project=${p.id}`} className="flex items-center gap-1.5 font-medium text-brand-green hover:underline">
+                      <UsersRound className="h-4 w-4" /> {p.matchingBuyers} matching {p.matchingBuyers === 1 ? "buyer" : "buyers"}
+                    </Link>
+                  )}
                   <div className="ml-auto flex flex-wrap gap-2">
                     {p.status !== "sold" && p.status !== "withdrawn" && (
                       <>

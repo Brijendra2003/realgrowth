@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { ArrowRight, Building2, Check, Home, UserRound } from "lucide-react";
+import { ArrowRight, Building2, Check, Home, Search, UserRound } from "lucide-react";
 import { signupAction } from "@/actions/auth";
 import { Field, FormAlert } from "@/components/ui/field";
 import { PasswordInput } from "@/components/ui/password-input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Turnstile } from "@/components/ui/turnstile";
-import { SIGNUP_ROLE_CARDS, type ListerRole } from "@/lib/constants";
+import { SIGNUP_ROLE_CARDS, type PublicRole } from "@/lib/constants";
 import type { ActionState } from "@/lib/types";
 
-const ICONS: Record<ListerRole, typeof Home> = { developer: Building2, owner: Home, broker: UserRound };
+const ICONS: Record<PublicRole, typeof Home> = { buyer: Search, developer: Building2, owner: Home, broker: UserRound };
 
-export function SignupForm({ defaultRole, next }: { defaultRole?: ListerRole; next?: string }) {
+export function SignupForm({ defaultRole, next }: { defaultRole?: PublicRole; next?: string }) {
   const [state, action] = useActionState<ActionState, FormData>(signupAction, {});
   const v = state.values ?? {};
-  const [role, setRole] = useState<ListerRole | undefined>((v.role as ListerRole) ?? defaultRole);
+  const [role, setRole] = useState<PublicRole | undefined>((v.role as PublicRole) ?? defaultRole);
   const e = state.errors ?? {};
 
   return (

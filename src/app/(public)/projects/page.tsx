@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, SearchX, SlidersHorizontal, X } from "lucide-react";
 import { AutoSubmitForm } from "@/components/project/filter-form";
 import { ProjectCard } from "@/components/project/project-card";
+import { PostRequirementCta } from "@/components/requirement/post-requirement-cta";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -80,6 +81,14 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
   if (f.config) chips.push({ label: f.config, key: "config" });
 
   const budgets = f.purpose === "rent" ? BUDGETS_RENT : f.purpose === "sale" ? BUDGETS_SALE : ALL_BUDGETS;
+
+  // "Didn't find it?" carries the current filters into the requirement form. Visitors sign up as a buyer first.
+  const showCta = !user || user.role === "buyer";
+  const prefill = new URLSearchParams(
+    Object.entries(f).filter(([k, v]) => v && ["purpose", "segment", "area", "zone", "type", "budget", "config"].includes(k)) as [string, string][],
+  ).toString();
+  const formHref = `/requirements/new${prefill ? `?${prefill}` : ""}`;
+  const ctaHref = user ? formHref : `/signup?${new URLSearchParams({ role: "buyer", next: formHref })}`;
 
   return (
     <>
@@ -258,7 +267,8 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
           </div>
 
           {items.length === 0 ? (
-            <div className="mt-6">
+            <div className="mt-6 space-y-6">
+              {showCta && <PostRequirementCta href={ctaHref} />}
               {chips.length > 0 ? (
                 <EmptyState
                   icon={SearchX}
@@ -310,6 +320,12 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/project
                 Next <ChevronRight className="h-4 w-4" />
               </Link>
             </nav>
+          )}
+
+          {items.length > 0 && showCta && (
+            <div className="mt-10">
+              <PostRequirementCta href={ctaHref} compact />
+            </div>
           )}
         </section>
       </div>

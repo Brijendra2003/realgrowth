@@ -27,9 +27,10 @@ Similar in spirit to MagicBricks / 99acres, but deliberately narrow (one corrido
 | `developer` | I'm a developer | Yes | Yes |
 | `owner` | I own a property to list | Yes | Yes |
 | `broker` | I'm a broker / channel partner | Yes | Yes |
+| `buyer` | I'm looking to buy or rent | No | Yes |
 | (visitor) | No sign-up. Buyers and tenants enquire without an account | No | Yes |
 
-Listers (`developer`, `owner`, `broker`) also get a **Leads dashboard**. Buyers do not register: an enquiry only needs a name and mobile number, and a visitor is recognised by that number. The `buyer` role remains in the schema only for accounts created before this change.
+Listers (`developer`, `owner`, `broker`) also get a **Leads dashboard** and **Matching buyers**. Enquiring never needs an account: an enquiry only needs a name and mobile number, and a visitor is recognised by that number. A buyer registers only to **post a requirement** (§3.5). When an account is created, or signs in, with a number that already sent enquiries as a visitor, those enquiries are attached to the account.
 
 ### 2.2 Website team (created by Super Admin only)
 
@@ -113,6 +114,27 @@ If one buyer (same account, or same mobile number for visitors) submits enquirie
 
 > Assumption: "show the details accordingly" is interpreted as grouping and highlighting for the lister. See **Open Questions** at the end.
 
+### 3.5 Buyer requirements and match percentage
+
+1. A buyer who doesn't find what they want clicks **Post a requirement** on search. Visitors sign up as a buyer first, and the form starts prefilled from their search filters.
+2. Requirement: buy/rent, residential/commercial, areas (one or more), property types, sizes, categories, budget range, minimum carpet area, note. Up to 5 per buyer; each can be paused or deleted.
+3. Every live listing is scored against it (`src/lib/matching.ts`). Buy/rent and residential/commercial must agree; the rest is out of 100:
+
+   | Rule | Points | Partial credit |
+   |---|---|---|
+   | Area | 30 | 15 for another area in the same zone |
+   | Budget | 30 | 25 if ≤5% over or below the minimum, 20 if ≤10% over, 10 if ≤20% over |
+   | Property type | 20 | — (empty = any) |
+   | Size (BHK) | 10 | 5 for one size off |
+   | Carpet area | 5 | 3 if within 10% of the minimum |
+   | Category | 5 | — (empty = any) |
+
+   Only matches of **50% or more** are shown anywhere.
+4. **Buyer** sees matching properties best first, with the percentage and a per-rule breakdown.
+5. **Lister** sees, per live property, the matching buyers and percentage, but **not their name or number**. They can **Request contact**. The buyer accepts (shares their number, which creates a normal lead on that property) or declines.
+6. **Staff** see every requirement with buyer details, match counts and top matches (`/admin/requirements`).
+7. Notifications (in-app): listers with a matching live property when a requirement is posted; buyers when a newly verified property matches; the buyer on a contact request; the lister when it is accepted or declined.
+
 ---
 
 ## 4. Features
@@ -133,6 +155,7 @@ If one buyer (same account, or same mobile number for visitors) submits enquirie
 
 ### 4.3 Buyer dashboard
 
+- My requirements, with matching properties by percentage and lister contact requests (§3.5)
 - My enquiries (project, lister, date, status)
 - Saved projects (optional, phase 2)
 - Profile
@@ -318,6 +341,21 @@ project_reviews                    -- verification trail
 notifications
   id uuid PK, user_id, title text, body text, link text, read_at, created_at
 
+requirements                       -- what a registered buyer is looking for (§3.5)
+  id uuid PK, buyer_id -> profiles
+  purpose listing_purpose, segment segment
+  area_ids int[], property_type_ids int[], configurations text[], categories listing_category[]  -- empty = any
+  budget_min numeric, budget_max numeric, min_carpet_sqft numeric
+  note text, is_active boolean
+  created_at, updated_at
+
+requirement_contacts               -- lister asks a matching buyer to share their number
+  id uuid PK, requirement_id, project_id, lister_id, match_percent int
+  status text                      -- pending | accepted | declined
+  lead_id -> leads                 -- set when accepted
+  created_at, responded_at
+  UNIQUE (requirement_id, project_id)
+
 activity_log                       -- the "see everything" table for staff
   id bigserial PK
   actor_id uuid, actor_role user_role
@@ -431,6 +469,8 @@ real-growth/
 |---|---|
 | `/list-project`, `/my-projects`, `/leads`, `/dashboard` | Signed in; listing pages require lister role |
 | `/my-enquiries` | Signed in |
+| `/requirements/*` | Signed in, buyer role |
+| `/matching-buyers` | Signed in, lister role |
 | `/admin/*` | Staff roles only; `/admin/staff`, `/admin/settings` super admin only |
 
 ---

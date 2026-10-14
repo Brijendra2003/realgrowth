@@ -2,6 +2,7 @@ import {
   Bell,
   Building2,
   ClipboardCheck,
+  ClipboardList,
   Heart,
   History,
   Inbox,
@@ -12,9 +13,10 @@ import {
   ShieldCheck,
   UserRound,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
-import { isLister, isStaff, type UserRole } from "@/lib/constants";
+import { isBuyer, isLister, isStaff, type UserRole } from "@/lib/constants";
 
 export type NavLink = { href: string; label: string; icon: LucideIcon };
 
@@ -31,9 +33,11 @@ export function accountLinks(role: UserRole): NavLink[] {
     links.push(
       { href: "/my-projects", label: "My properties", icon: Building2 },
       { href: "/leads", label: "Leads", icon: Inbox },
+      { href: "/matching-buyers", label: "Matching buyers", icon: UsersRound },
       { href: "/list-project", label: "Add a property", icon: PlusCircle },
     );
   }
+  if (isBuyer(role)) links.push({ href: "/requirements", label: "My requirements", icon: ClipboardList });
   links.push(
     { href: "/my-enquiries", label: "My enquiries", icon: MessageSquareText },
     { href: "/saved", label: "Saved", icon: Heart },
@@ -50,6 +54,7 @@ export function adminLinks(role: UserRole): (NavLink & { group: string })[] {
     { group: "Moderation", href: "/admin/verification", label: "Verification queue", icon: ClipboardCheck },
     { group: "Moderation", href: "/admin/projects", label: "All projects", icon: Building2 },
     { group: "Moderation", href: "/admin/leads", label: "All leads", icon: Inbox },
+    { group: "Moderation", href: "/admin/requirements", label: "Buyer requirements", icon: ClipboardList },
     { group: "Moderation", href: "/admin/users", label: "Users", icon: Users },
   ];
   if (role === "super_admin") {
