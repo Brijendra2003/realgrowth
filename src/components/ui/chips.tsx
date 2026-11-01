@@ -14,6 +14,8 @@ const STATUS_STYLE: Record<ProjectStatus, string> = {
   rejected: "bg-clay-50 text-clay ring-1 ring-clay/25",
   sold: "bg-[#ece8f7] text-[#5b4a99] ring-1 ring-[#5b4a99]/20",
   withdrawn: "bg-line-soft text-muted ring-1 ring-line",
+  hidden: "bg-line-soft text-ink-soft ring-1 ring-ink-soft/25",
+  trashed: "bg-danger/10 text-danger ring-1 ring-danger/25",
 };
 
 export function ProjectStatusChip({ status }: { status: ProjectStatus }) {

@@ -49,7 +49,10 @@ export type Project = {
   purpose: Purpose;
   property_type_id: number;
   area_id: number;
-  address_line: string;
+  building_name: string | null;
+  address_line: string; // street or road
+  landmark: string | null;
+  pincode: string | null; // null on listings saved before PIN codes were asked for
   configuration: string;
   carpet_area_sqft: number;
   price: number;
@@ -59,6 +62,8 @@ export type Project = {
   media: ProjectMedia[];
   status: ProjectStatus;
   rejection_reason: string | null;
+  trashed_at: string | null;
+  status_before_trash: ProjectStatus | null;
   verified_by: string | null;
   verified_at: string | null;
   views_count: number;

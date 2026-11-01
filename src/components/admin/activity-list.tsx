@@ -36,6 +36,12 @@ function describe(e: Entry): string {
     case "project.rejected": return `rejected “${m.title}”${m.reason ? ` — ${m.reason}` : ""}`;
     case "project.sold": return `marked “${m.title}” as sold`;
     case "project.withdrawn": return `withdrew “${m.title}”`;
+    case "project.staff_edited": return `edited “${m.title}” for the lister`;
+    case "project.hidden": return `took “${m.title}” offline`;
+    case "project.relisted": return `put “${m.title}” back live`;
+    case "project.trashed": return `moved “${m.title}” to the trash`;
+    case "project.restored": return `restored “${m.title}” from the trash`;
+    case "project.purged": return `deleted “${m.title}” for good (30 days in the trash)`;
     case "lead.created": return `enquired on “${m.project}”`;
     case "lead.updated": return `enquired again on “${m.project}”`;
     case "lead.stage_changed": return `moved a lead ${stageName(m.from)} → ${stageName(m.to)}`;

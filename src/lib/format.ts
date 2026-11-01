@@ -21,6 +21,15 @@ export function formatPricePerSqft(price: number, sqft: number): string | null {
   return `₹${Math.round(price / sqft).toLocaleString("en-IN")}/sq ft`;
 }
 
+/** "Sunrise Residency, Station Road, Near Hatkesh Udyog Nagar, Mira Road East 401107" — empty parts are skipped. */
+export function formatAddress(
+  p: { building_name?: string | null; address_line: string; landmark?: string | null; pincode?: string | null },
+  areaName?: string,
+): string {
+  const place = [areaName, p.pincode].filter(Boolean).join(" ");
+  return [p.building_name, p.address_line, p.landmark, place].filter(Boolean).join(", ");
+}
+
 /** Everything is shown in India time, wherever the server runs. */
 const TZ = "Asia/Kolkata";
 

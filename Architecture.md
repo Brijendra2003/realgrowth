@@ -293,7 +293,10 @@ projects
   purpose listing_purpose        -- sale / rent
   property_type_id -> property_types
   area_id -> areas
-  address_line text
+  building_name text             -- optional building / society name
+  address_line text              -- street or road
+  landmark text                  -- optional
+  pincode text                   -- 6 digits, starts with 401 in our areas
   configuration text             -- "2 BHK" etc.
   carpet_area_sqft numeric
   price numeric                  -- total price or monthly rent

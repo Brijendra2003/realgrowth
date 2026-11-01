@@ -57,6 +57,9 @@ export default async function MyProjectsPage({ searchParams }: PageProps<"/my-pr
                   <p className="mt-2 rounded-lg bg-clay-50 px-3 py-2 text-sm text-clay">Needs changes: {p.rejection_reason}</p>
                 )}
                 {p.status === "unverified" && <p className="mt-2 text-sm text-[#8a6100]">Under review by our team.</p>}
+                {p.status === "hidden" && (
+                  <p className="mt-2 rounded-lg bg-line-soft px-3 py-2 text-sm text-ink-soft">Our team took this off the site. Edit it to send it back for review, or call us.</p>
+                )}
                 <div className="mt-auto flex flex-wrap items-center gap-x-5 gap-y-2 pt-3 text-sm">
                   <span className="flex items-center gap-1.5 text-muted"><Eye className="h-4 w-4" /> {p.views_count} views</span>
                   <Link href={`/leads?project=${p.id}`} className="flex items-center gap-1.5 font-medium text-brand-green hover:underline">
@@ -70,7 +73,7 @@ export default async function MyProjectsPage({ searchParams }: PageProps<"/my-pr
                   <div className="ml-auto flex flex-wrap gap-2">
                     {p.status !== "sold" && p.status !== "withdrawn" && (
                       <>
-                        <Link href={`/my-projects/${p.id}/edit`} className="btn btn-outline btn-sm"><Pencil className="h-3.5 w-3.5" /> {p.status === "rejected" ? "Fix & resubmit" : "Edit"}</Link>
+                        <Link href={`/my-projects/${p.id}/edit`} className="btn btn-outline btn-sm"><Pencil className="h-3.5 w-3.5" /> {p.status === "rejected" || p.status === "hidden" ? "Fix & resubmit" : "Edit"}</Link>
                         {p.status === "verified" && (
                           <form action={setProjectStatusAction}>
                             <input type="hidden" name="project_id" value={p.id} />

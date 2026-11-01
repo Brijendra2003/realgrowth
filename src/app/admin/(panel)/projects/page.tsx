@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ProjectActions } from "@/components/admin/project-actions";
 import { AutoSubmitGet } from "@/components/ui/auto-submit-get";
 import { ListerBadge, ProjectStatusChip } from "@/components/ui/chips";
+import { FormAlert } from "@/components/ui/field";
 import { PageTitle } from "@/components/ui/page-title";
 import { requireStaff } from "@/lib/auth";
 import { PROJECT_STATUS_LABELS, PROJECT_STATUSES } from "@/lib/constants";
@@ -13,9 +15,14 @@ export const instant = false;
 
 export const metadata: Metadata = { title: "All projects" };
 
+// Trashed listings have their own page (/admin/trash).
+const STATUSES = PROJECT_STATUSES.filter((s) => s !== "trashed");
+
 export default async function AdminProjectsPage({ searchParams }: PageProps<"/admin/projects">) {
   const sp = await searchParams;
-  const f = { status: typeof sp.status === "string" ? sp.status : undefined, q: typeof sp.q === "string" ? sp.q : undefined };
+  const status = typeof sp.status === "string" && sp.status !== "trashed" ? sp.status : undefined;
+  const f = { status, q: typeof sp.q === "string" ? sp.q : undefined };
+  const saved = sp.saved === "1";
   await requireStaff();
   const items = await getAllProjects(f);
   return (
@@ -25,19 +32,24 @@ export default async function AdminProjectsPage({ searchParams }: PageProps<"/ad
         <input name="q" defaultValue={f.q} placeholder="Search title, code, lister or area…" className="input sm:max-w-sm" />
         <select name="status" defaultValue={f.status ?? ""} className="input sm:max-w-[14rem]">
           <option value="">All statuses</option>
-          {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
+          {STATUSES.map((s) => <option key={s} value={s}>{PROJECT_STATUS_LABELS[s]}</option>)}
         </select>
         <button className="btn btn-outline">Search</button>
       </AutoSubmitGet>
+      {saved && (
+        <div className="mb-5">
+          <FormAlert tone="success">Changes saved. The lister has been told.</FormAlert>
+        </div>
+      )}
       <div className="card overflow-x-auto">
-        <table className="table-clean min-w-[56rem]">
+        <table className="table-clean min-w-[60rem]">
           <thead>
-            <tr><th>Project</th><th>Lister</th><th>Area</th><th className="text-right">Price</th><th className="text-right">Leads</th><th>Status</th><th>Updated</th></tr>
+            <tr><th>Project</th><th>Lister</th><th>Area</th><th className="text-right">Price</th><th className="text-right">Leads</th><th>Status</th><th>Updated</th><th className="text-right">Actions</th></tr>
           </thead>
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-10 text-center text-sm text-muted">
+                <td colSpan={8} className="py-10 text-center text-sm text-muted">
                   {f.q || f.status ? "No listings match this search." : "No listings yet. New ones show up here as soon as a lister submits them."}
                 </td>
               </tr>
@@ -54,6 +66,7 @@ export default async function AdminProjectsPage({ searchParams }: PageProps<"/ad
                 <td className="text-right">{p.leadCount}</td>
                 <td><ProjectStatusChip status={p.status} /></td>
                 <td className="text-xs text-muted">{timeAgo(p.updated_at)}</td>
+                <td><ProjectActions id={p.id} status={p.status} /></td>
               </tr>
             ))}
           </tbody>

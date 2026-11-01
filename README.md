@@ -11,6 +11,9 @@ Full product spec: [Architecture.md](Architecture.md).
    1. `supabase/migrations/0001_init.sql`: tables, indexes, triggers
    2. `supabase/migrations/0002_server_side_access.sql`: accounts, lock-down, rate limiting
    3. `supabase/seed.sql`: the areas and property types (reference data, not sample listings)
+   4. `supabase/migrations/0003_buyer_requirements.sql`: buyer requirements and matching
+   5. `supabase/migrations/0004_project_address.sql`: building, landmark and PIN code on listings
+   6. `supabase/migrations/0005_project_trash.sql`: team can take listings offline or trash them
 3. **First team account.** `npm run create-admin` asks for a name, mobile number and password and creates a super admin. After that, super admins add staff at `/admin/staff`.
 4. **Run it.**
 
@@ -24,6 +27,7 @@ There is no sample data. The site starts empty: listers sign up at `/signup`, ad
 ## Going live
 
 - Set every variable from `.env.local` in the hosting dashboard, with a **new** `SESSION_SECRET` and the real `NEXT_PUBLIC_SITE_URL`.
+- Set `CRON_SECRET`. Vercel then runs `/api/cron/purge-trash` every night (see `vercel.json`), which deletes listings 30 days after the team trashed them. Opening **Trash** in the team console also runs it, as a backup.
 - Add the Turnstile keys. Without them the sign-in, sign-up and enquiry forms are not protected against bots (the server logs a warning).
 - Replace the placeholder phone number, email and address in `SITE` in `src/lib/constants.ts`.
 - Have the Privacy and Terms pages reviewed; they are templates.

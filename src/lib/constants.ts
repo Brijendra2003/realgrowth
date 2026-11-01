@@ -63,7 +63,7 @@ export const PURPOSES = ["sale", "rent"] as const;
 export type Purpose = (typeof PURPOSES)[number];
 export const PURPOSE_LABELS: Record<Purpose, string> = { sale: "For sale", rent: "For rent" };
 
-export const PROJECT_STATUSES = ["unverified", "verified", "rejected", "sold", "withdrawn"] as const;
+export const PROJECT_STATUSES = ["unverified", "verified", "rejected", "sold", "withdrawn", "hidden", "trashed"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   unverified: "Under review",
@@ -71,7 +71,11 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   rejected: "Needs changes",
   sold: "Sold",
   withdrawn: "Withdrawn",
+  hidden: "Taken offline",
+  trashed: "In trash",
 };
+/** A trashed listing is deleted for good this many days after it was trashed. */
+export const TRASH_DAYS = 30;
 
 export const LEAD_STAGES = [
   "new",
@@ -129,7 +133,24 @@ export const AREA_ZONES: { zone: string; areas: string[] }[] = [
   },
 ];
 
-export const PROPERTY_TYPES: { segment: Segment; name: string; slug: string }[] = [
+/** Areas that aren't named after their station. Everything else maps by dropping East/West ("Virar East" → "Virar"). */
+const AREA_STATIONS: Record<string, string> = {
+  Kashimira: "Mira Road", "Shanti Park": "Mira Road", "Beverly Park": "Mira Road", "Silver Park": "Mira Road", "Sheetal Nagar": "Mira Road",
+  Navghar: "Bhayandar", Uttan: "Bhayandar", Dongri: "Bhayandar",
+  Juchandra: "Naigaon",
+  "Vasai Gaon": "Vasai Road", Papdy: "Vasai Road",
+  Achole: "Nalasopara",
+  Bolinj: "Virar", Agashi: "Virar", Arnala: "Virar",
+  Umroli: "Palghar",
+  "Tarapur MIDC": "Boisar", Chinchani: "Boisar",
+};
+
+/** The railway station an area is closest to, used for "nearby" suggestions. */
+export function stationOf(area: string): string {
+  return AREA_STATIONS[area] ?? area.replace(/ (East|West)$/, "");
+}
+
+export const PROPERTY_TYPES:{ segment: Segment; name: string; slug: string }[] = [
   { segment: "residential", name: "Flat / Apartment", slug: "flat" },
   { segment: "residential", name: "Independent House / Villa", slug: "villa" },
   { segment: "residential", name: "Row House", slug: "row-house" },
@@ -174,6 +195,8 @@ export const SORTS = [
 
 export const MAHARERA_REGEX = /^P99\d{9}$/;
 export const PHONE_REGEX = /^[6-9]\d{9}$/;
+/** Every PIN code from Mira Road to Dahanu Road starts with 401. */
+export const PINCODE_REGEX = /^401\d{3}$/;
 export const MAX_PHOTOS = 15;
 export const MAX_VIDEOS = 2;
 export const MAX_REQUIREMENTS = 5;

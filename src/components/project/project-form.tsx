@@ -28,6 +28,8 @@ type Props = {
   propertyTypes: PropertyType[];
   project?: Project;
   role?: UserRole;
+  /** Set when our team edits a lister's property from the team console. */
+  staffAction?: typeof saveProjectAction;
 };
 
 const CATEGORY_TO_STATUS: Record<ListingCategory, ConstructionStatus> = {
@@ -100,10 +102,11 @@ function Toggle<T extends string>({ name, value, onChange, options }: { name: st
   );
 }
 
-export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
+export function ProjectForm({ areas, propertyTypes, project, role, staffAction }: Props) {
   // An owner is selling or renting out a home they already hold, so a new listing starts as resale.
   const startCategory: ListingCategory = role === "owner" ? "resale" : "new_project";
-  const [state, action] = useActionState<ActionState, FormData>(saveProjectAction, {});
+  const byStaff = !!staffAction;
+  const [state, action] = useActionState<ActionState, FormData>(staffAction ?? saveProjectAction, {});
   const e = state.errors ?? {};
   const v = state.values ?? {};
   const pick = <K extends keyof Project>(k: K, fallback = "") => v[k as string] ?? (project ? String(project[k] ?? "") : fallback);
@@ -195,12 +198,17 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
       ))}
 
       {(state.message || clientError) && <FormAlert>{clientError ?? state.message}</FormAlert>}
-      {project?.status === "verified" && (
+      {byStaff && (
+        <FormAlert tone="info">
+          You are editing this property for the lister. Your changes go live as they are — the status stays the same — and the lister gets a notification.
+        </FormAlert>
+      )}
+      {!byStaff && project?.status === "verified" && (
         <FormAlert tone="info">
           This property is live. Changing the price, location, type or MahaRERA number will send it back to our team for a quick check. Description and photo changes go live straight away.
         </FormAlert>
       )}
-      {project?.status === "rejected" && project.rejection_reason && (
+      {!byStaff && project?.status === "rejected" && project.rejection_reason && (
         <FormAlert>Our team asked for changes: {project.rejection_reason}</FormAlert>
       )}
 
@@ -267,10 +275,44 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
               ))}
             </select>
           </Field>
-          <Field label="Street or landmark" htmlFor="address_line" error={e.address_line} hint="Buyers see this. No flat number needed.">
-            <input id="address_line" name="address_line" className="input" defaultValue={pick("address_line")} required minLength={5} placeholder="e.g. Near Hatkesh Udyog Nagar" aria-invalid={!!e.address_line} />
+          <Field label="PIN code" htmlFor="pincode" error={e.pincode} hint="6 digits, e.g. 401107">
+            <input
+              id="pincode"
+              name="pincode"
+              className="input tracking-wider"
+              defaultValue={pick("pincode")}
+              required
+              inputMode="numeric"
+              maxLength={6}
+              pattern="401[0-9]{3}"
+              title="6-digit PIN code starting with 401, e.g. 401107"
+              placeholder="401107"
+              autoComplete="postal-code"
+              aria-invalid={!!e.pincode}
+            />
+          </Field>
+          <Field label="Building or society name" htmlFor="building_name" optional error={e.building_name}>
+            <input id="building_name" name="building_name" className="input" defaultValue={pick("building_name")} maxLength={100} placeholder="e.g. Sunrise Residency" aria-invalid={!!e.building_name} />
+          </Field>
+          <Field label="Street or road" htmlFor="address_line" error={e.address_line}>
+            <input
+              id="address_line"
+              name="address_line"
+              className="input"
+              defaultValue={pick("address_line")}
+              required
+              minLength={3}
+              maxLength={160}
+              placeholder="e.g. Shanti Park, Poonam Sagar Road"
+              autoComplete="street-address"
+              aria-invalid={!!e.address_line}
+            />
+          </Field>
+          <Field label="Nearby landmark" htmlFor="landmark" optional error={e.landmark} hint="Something buyers can find easily — a station, school or mall.">
+            <input id="landmark" name="landmark" className="input" defaultValue={pick("landmark")} maxLength={120} placeholder="e.g. Near Hatkesh Udyog Nagar" aria-invalid={!!e.landmark} />
           </Field>
         </div>
+        <p className="hint mt-4">Buyers see this address. Don&apos;t add a flat or house number.</p>
       </Section>
 
       <Section n={3} title="Size and price">
@@ -461,7 +503,11 @@ export function ProjectForm({ areas, propertyTypes, project, role }: Props) {
       <div className="sticky bottom-4 z-10 flex flex-col items-center gap-3 rounded-2xl border border-line bg-paper/95 p-4 shadow-pop backdrop-blur sm:flex-row sm:justify-between">
         <p className="flex items-center gap-2 text-sm text-ink-soft">
           <Info className="h-4 w-4 text-brand-gold" strokeWidth={1.8} />
-          {project?.status === "verified" ? "Minor edits go live right away." : "Our team will check it before it goes live — usually within a day."}
+          {byStaff
+            ? "Saved changes apply straight away."
+            : project?.status === "verified"
+              ? "Minor edits go live right away."
+              : "Our team will check it before it goes live — usually within a day."}
         </p>
         <SubmitButton className="btn btn-primary btn-lg w-full sm:w-auto" pendingText="Saving…">
           {project ? "Save changes" : "Submit for review"}

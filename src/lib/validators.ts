@@ -6,6 +6,7 @@ import {
   LEAD_STAGES,
   MAHARERA_REGEX,
   PHONE_REGEX,
+  PINCODE_REGEX,
   PUBLIC_ROLES,
   PURPOSES,
   SEGMENTS,
@@ -51,7 +52,14 @@ export const projectSchema = z
     purpose: z.enum(PURPOSES, { message: "Choose sell or rent" }),
     property_type_id: z.coerce.number({ message: "Choose a property type" }).int().positive("Choose a property type"),
     area_id: z.coerce.number({ message: "Choose an area" }).int().positive("Choose an area"),
-    address_line: z.string().trim().min(5, "Add a landmark or street").max(160),
+    building_name: z.string().trim().max(100).optional().transform((v) => v || null),
+    address_line: z.string().trim().min(3, "Add the street or road name").max(160),
+    landmark: z.string().trim().max(120).optional().transform((v) => v || null),
+    pincode: z
+      .string()
+      .trim()
+      .refine((v) => /^\d{6}$/.test(v), "Enter the 6-digit PIN code")
+      .refine((v) => PINCODE_REGEX.test(v), "PIN codes between Mira Road and Dahanu Road start with 401"),
     configuration: z.enum(CONFIGURATIONS as [string, ...string[]], { message: "Choose a size" }),
     carpet_area_sqft: z.coerce.number({ message: "Enter the carpet area" }).positive("Enter the carpet area").max(500_000),
     price: z.coerce.number({ message: "Enter the price" }).positive("Enter the price").max(1_000_00_00_000),

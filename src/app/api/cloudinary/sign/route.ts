@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
 import { signedUploadParams } from "@/lib/cloudinary";
-import { isLister } from "@/lib/constants";
+import { isLister, isStaff } from "@/lib/constants";
 import { limited } from "@/lib/rate-limit";
 
 /**
@@ -10,7 +10,8 @@ import { limited } from "@/lib/rate-limit";
  */
 export async function POST(request: Request) {
   const user = await getSessionUser();
-  if (!user || !isLister(user.role)) return Response.json({ error: "Sign in as a lister to upload photos." }, { status: 401 });
+  // Staff upload too, when they edit a listing from the team console.
+  if (!user || !(isLister(user.role) || isStaff(user.role))) return Response.json({ error: "Sign in as a lister to upload photos." }, { status: 401 });
   if (await limited(`upload:${user.id}`, 150, 60 * 60 * 1000)) {
     return Response.json({ error: "You've uploaded a lot of photos in a short time. Please try again later." }, { status: 429 });
   }

@@ -7,7 +7,7 @@ import { ReviewForm } from "@/components/admin/review-form";
 import { LeadStageChip, ProjectStatusChip, RoleChip } from "@/components/ui/chips";
 import { requireStaff } from "@/lib/auth";
 import { CATEGORY_LABELS, CONSTRUCTION_LABELS, PURPOSE_LABELS, SEGMENT_LABELS } from "@/lib/constants";
-import { formatDate, formatDateTime, formatMonthYear, formatPrice, videoPoster } from "@/lib/format";
+import { formatAddress, formatDate, formatDateTime, formatMonthYear, formatPrice, videoPoster } from "@/lib/format";
 import { getProjectForReview } from "@/lib/queries";
 
 // Reads the session or URL on every request, so navigations may block on the server.
@@ -33,7 +33,8 @@ export default async function ReviewPage({ params }: PageProps<"/admin/verificat
     ["Carpet area", `${p.carpet_area_sqft} sq ft`],
     ["Price", `${formatPrice(p.price, p.purpose)}${p.purpose === "rent" ? "/month" : ""}`],
     ["Area", `${p.area.name} (${p.area.zone})`],
-    ["Address", p.address_line],
+    ["Address", formatAddress(p)],
+    ["PIN code", p.pincode ?? "—"],
     ["Possession", formatMonthYear(p.possession_date)],
     ["Submitted", formatDateTime(p.created_at)],
     ["Last updated", formatDateTime(p.updated_at)],

@@ -11,6 +11,7 @@ import {
   MessageSquareText,
   PlusCircle,
   ShieldCheck,
+  Trash2,
   UserRound,
   Users,
   UsersRound,
@@ -63,6 +64,7 @@ export function adminLinks(role: UserRole): (NavLink & { group: string })[] {
       { group: "System", href: "/admin/settings", label: "Areas & settings", icon: MapPinned },
     );
   }
+  links.push({ group: "System", href: "/admin/trash", label: "Trash", icon: Trash2 });
   return links;
 }
 

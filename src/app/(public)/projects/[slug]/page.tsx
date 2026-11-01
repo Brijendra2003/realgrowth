@@ -28,8 +28,8 @@ import { SaveButton } from "@/components/project/save-button";
 import { ViewTracker } from "@/components/project/view-tracker";
 import { LeadStageChip, ListerBadge, ProjectStatusChip, VerifiedBadge } from "@/components/ui/chips";
 import { getSessionUser } from "@/lib/auth";
-import { CATEGORY_LABELS, CONSTRUCTION_LABELS, PURPOSE_LABELS, ROLE_LABELS, SEGMENT_LABELS, isStaff } from "@/lib/constants";
-import { formatDate, formatMonthYear, formatPrice, formatPricePerSqft, initials, slugify } from "@/lib/format";
+import { CATEGORY_LABELS, CONSTRUCTION_LABELS, PURPOSE_LABELS, ROLE_LABELS, SEGMENT_LABELS, isStaff, stationOf } from "@/lib/constants";
+import { formatAddress, formatDate, formatMonthYear, formatPrice, formatPricePerSqft, initials, slugify } from "@/lib/format";
 import { getProjectBySlug } from "@/lib/queries";
 
 // Reads the session or URL on every request, so navigations may block on the server.
@@ -76,7 +76,14 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
     image: p.media.filter((m) => m.kind === "image").map((m) => m.url),
     datePosted: p.verified_at ?? p.created_at,
     offers: { "@type": "Offer", price: p.price, priceCurrency: "INR" },
-    address: { "@type": "PostalAddress", streetAddress: p.address_line, addressLocality: p.area.name, addressRegion: "Maharashtra", addressCountry: "IN" },
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: formatAddress({ building_name: p.building_name, address_line: p.address_line, landmark: p.landmark }),
+      addressLocality: p.area.name,
+      ...(p.pincode ? { postalCode: p.pincode } : {}),
+      addressRegion: "Maharashtra",
+      addressCountry: "IN",
+    },
   };
 
   return (
@@ -129,7 +136,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
               <p className="mt-2 flex items-start gap-2 text-ink-soft">
                 <MapPin className="mt-1 h-4 w-4 shrink-0 text-brand-gold" strokeWidth={1.8} />
                 <span>
-                  {p.address_line}, {p.area.name} · <span className="text-muted">{p.area.zone}</span>
+                  {formatAddress(p, p.area.name)} · <span className="text-muted">{p.area.zone}</span>
                 </span>
               </p>
               <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-3 border-y border-line py-5">
@@ -222,10 +229,10 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
               <div className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 id="location" className="font-semibold">{p.area.name}</h2>
-                  <p className="text-sm text-muted">{p.address_line} · {p.area.zone}</p>
+                  <p className="text-sm text-muted">{formatAddress(p, p.area.name)} · {p.area.zone}</p>
                 </div>
                 <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.address_line}, ${p.area.name}, Maharashtra`)}`}
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${formatAddress(p, p.area.name)}, Maharashtra`)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="btn btn-outline btn-sm"
@@ -318,7 +325,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
           <section className="mt-20" aria-labelledby="similar">
             <div className="flex items-end justify-between">
               <div>
-                <p className="eyebrow">You may also like</p>
+                <p className="eyebrow">More {p.purpose === "rent" ? "to rent" : "for sale"} near {stationOf(p.area.name)}</p>
                 <h2 id="similar" className="mt-2 text-2xl font-semibold sm:text-3xl">
                   Similar properties <span className="accent-serif text-brand-green">nearby.</span>
                 </h2>

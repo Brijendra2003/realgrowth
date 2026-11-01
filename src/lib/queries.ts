@@ -9,6 +9,7 @@ import {
   OPEN_STAGES,
   PROJECT_STATUSES,
   STAFF_ROLES,
+  stationOf,
   type LeadStage,
   type UserRole,
 } from "./constants";
@@ -44,7 +45,7 @@ export type ProjectView = Project & {
 const LISTER_COLS = "id,full_name,role,company_name,agent_rera_no,created_at";
 const PROFILE_COLS = "id,role,full_name,phone,email,company_name,agent_rera_no,is_blocked,created_at,updated_at";
 const PROJECT_COLS =
-  "id,code,lister_id,title,slug,description,segment,category,construction_status,purpose,property_type_id,area_id,address_line,configuration,carpet_area_sqft,price,maharera_no,possession_date,amenities,status,rejection_reason,verified_by,verified_at,views_count,created_at,updated_at";
+  "id,code,lister_id,title,slug,description,segment,category,construction_status,purpose,property_type_id,area_id,building_name,address_line,landmark,pincode,configuration,carpet_area_sqft,price,maharera_no,possession_date,amenities,status,rejection_reason,trashed_at,status_before_trash,verified_by,verified_at,views_count,created_at,updated_at";
 const PROJECT_SELECT = `${PROJECT_COLS},area:areas(id,zone,name,is_active),type:property_types(id,segment,name,slug),lister:profiles!projects_lister_id_fkey(${LISTER_COLS}),media:project_media(id,url,kind,sort_order,cloudinary_public_id)`;
 const LEAD_COLS = "id,project_id,lister_id,buyer_id,name,phone,email,message,stage,lost_reason,site_visit_at,next_followup_at,is_repeat,created_at,updated_at";
 const LEAD_SELECT = `${LEAD_COLS},project:projects(id,title,slug,code,price,purpose,area:areas(name),media:project_media(url,sort_order))`;
@@ -156,7 +157,7 @@ export async function searchProjects(f: SearchFilters) {
       if (budget.max !== undefined) q = q.lte("price", budget.max);
     }
     for (const t of terms) {
-      const parts = ["title", "description", "address_line", "configuration", "code"].map((c) => `${c}.ilike.%${t}%`);
+      const parts = ["title", "description", "building_name", "address_line", "landmark", "pincode", "configuration", "code"].map((c) => `${c}.ilike.%${t}%`);
       const areaIds = allAreas.filter((a) => `${a.name} ${a.zone}`.toLowerCase().includes(t)).map((a) => a.id);
       const typeIds = propertyTypes.filter((p) => p.name.toLowerCase().includes(t)).map((p) => p.id);
       const listerIds = companies.filter((c) => c.company_name?.toLowerCase().includes(t)).map((c) => c.id);
@@ -233,7 +234,7 @@ export async function getLiveProjectSlugs() {
   );
 }
 
-/** Visible to the public when verified; to the lister and staff always. */
+/** Visible to the public when verified; to the lister unless trashed; to staff always. */
 export async function getProjectBySlug(slug: string, viewer?: { id: string; role: UserRole } | null) {
   const db = await sb();
   const record = row<ProjectRecord>(await db.from("projects").select(PROJECT_SELECT).eq("slug", slug).maybeSingle());
@@ -241,19 +242,26 @@ export async function getProjectBySlug(slug: string, viewer?: { id: string; role
   const p = toView(record);
   const isOwner = viewer?.id === p.lister_id;
   const isStaffViewer = !!viewer && (STAFF_ROLES as readonly string[]).includes(viewer.role);
-  if (p.status !== "verified" && !isOwner && !isStaffViewer) return null;
+  if (p.status !== "verified" && !isStaffViewer && (!isOwner || p.status === "trashed")) return null;
 
+  // Similar = same buy/rent, in the same zone. Same station first, then same segment, then newest.
+  const zoneAreas = rows<Pick<Area, "id" | "name">>(await db.from("areas").select("id,name").eq("zone", p.area.zone));
+  const station = stationOf(p.area.name);
   const [similarRes, liveRes] = await Promise.all([
     db
       .from("projects")
       .select(PROJECT_SELECT)
       .eq("status", "verified")
+      .eq("purpose", p.purpose)
       .neq("id", p.id)
-      .or(`area_id.eq.${p.area_id},property_type_id.eq.${p.property_type_id}`)
+      .in("area_id", idList(zoneAreas.map((a) => a.id)))
       .order("created_at", { ascending: false })
-      .limit(3),
+      .limit(30),
     db.from("projects").select("id", { count: "exact", head: true }).eq("lister_id", p.lister_id).eq("status", "verified"),
   ]);
+  const rank = (s: ProjectView) => (stationOf(s.area.name) === station ? 0 : 2) + (s.segment === p.segment ? 0 : 1);
+  // Array.sort is stable, so equal ranks keep the newest-first order.
+  const similar = rows<ProjectRecord>(similarRes).map(toView).sort((a, b) => rank(a) - rank(b)).slice(0, 3);
 
   let myEnquiry: Lead | null = null;
   let priorWithLister = 0;
@@ -270,7 +278,7 @@ export async function getProjectBySlug(slug: string, viewer?: { id: string; role
   }
   return {
     project: p,
-    similar: rows<ProjectRecord>(similarRes).map(toView),
+    similar,
     listerLiveCount: total(liveRes),
     myEnquiry,
     priorWithLister,
@@ -284,7 +292,7 @@ export async function getProjectBySlug(slug: string, viewer?: { id: string; role
 export async function getListerProjects(listerId: string) {
   const db = await sb();
   const [projects, leads] = await Promise.all([
-    db.from("projects").select(PROJECT_SELECT).eq("lister_id", listerId).order("updated_at", { ascending: false }),
+    db.from("projects").select(PROJECT_SELECT).eq("lister_id", listerId).neq("status", "trashed").order("updated_at", { ascending: false }),
     fetchAll<Pick<Lead, "project_id" | "stage">>((from, to) => db.from("leads").select("project_id,stage").eq("lister_id", listerId).order("id").range(from, to)),
   ]);
   const views = rows<ProjectRecord>(projects).map(toView);
@@ -298,7 +306,9 @@ export async function getListerProjects(listerId: string) {
 export async function getOwnProject(listerId: string, projectId: string) {
   if (!isUuid(projectId)) return null;
   const db = await sb();
-  const record = row<ProjectRecord>(await db.from("projects").select(PROJECT_SELECT).eq("id", projectId).eq("lister_id", listerId).maybeSingle());
+  const record = row<ProjectRecord>(
+    await db.from("projects").select(PROJECT_SELECT).eq("id", projectId).eq("lister_id", listerId).neq("status", "trashed").maybeSingle(),
+  );
   return record ? toView(record) : null;
 }
 
@@ -396,7 +406,7 @@ export async function getLeadDetail(leadId: string, viewer: { id: string; role: 
 
 export async function getListerDashboard(listerId: string) {
   const db = await sb();
-  const [projectRes, leads] = await Promise.all([db.from("projects").select(PROJECT_SELECT).eq("lister_id", listerId), listerLeadRows(listerId)]);
+  const [projectRes, leads] = await Promise.all([db.from("projects").select(PROJECT_SELECT).eq("lister_id", listerId).neq("status", "trashed"), listerLeadRows(listerId)]);
   const projects = rows<ProjectRecord>(projectRes).map(toView);
   const upcoming = leads
     .filter((l) => (l.site_visit_at || l.next_followup_at) && OPEN_STAGES.includes(l.stage))
@@ -703,7 +713,7 @@ async function withActors(entries: ActivityLog[]) {
   if (ids.length) {
     for (const p of rows<Pick<Profile, "id" | "full_name">>(await db.from("profiles").select("id,full_name").in("id", ids))) names.set(p.id, p.full_name);
   }
-  return entries.map((e) => ({ ...e, actor: (e.actor_id && names.get(e.actor_id)) || (e.actor_id ? "Deleted account" : "Visitor") }));
+  return entries.map((e) => ({ ...e, actor: (e.actor_id && names.get(e.actor_id)) || (e.actor_id ? "Deleted account" : e.action === "project.purged" ? "System" : "Visitor") }));
 }
 
 export async function getAdminOverview() {
@@ -797,11 +807,20 @@ export async function getProjectForReview(id: string) {
   };
 }
 
+/** Any listing, whatever its status, for the team's edit form. */
+export async function getProjectForStaff(id: string) {
+  if (!isUuid(id)) return null;
+  const db = await sb();
+  const record = row<ProjectRecord>(await db.from("projects").select(PROJECT_SELECT).eq("id", id).maybeSingle());
+  return record ? toView(record) : null;
+}
+
 export async function getAllProjects(f: { status?: string; q?: string } = {}) {
   const db = await sb();
   let query = db.from("projects").select(PROJECT_SELECT).order("updated_at", { ascending: false }).limit(500);
+  // The trash is only shown when asked for.
   const status = oneOf(PROJECT_STATUSES, f.status);
-  if (status) query = query.eq("status", status);
+  query = status ? query.eq("status", status) : query.neq("status", "trashed");
   const [projectRes, leads] = await Promise.all([query, allLeadFacts()]);
   let items = rows<ProjectRecord>(projectRes).map((r) => ({ ...toView(r), leadCount: leads.filter((l) => l.project_id === r.id).length }));
   if (f.q) {

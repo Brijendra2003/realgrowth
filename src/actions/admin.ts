@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { logActivity, notify } from "@/lib/activity";
 import { requireStaff } from "@/lib/auth";
-import { STAFF_ROLES } from "@/lib/constants";
+import { STAFF_ROLES, type ProjectStatus } from "@/lib/constants";
 import { hashPassword } from "@/lib/password";
 import { getRequirementsMatchingProject } from "@/lib/queries";
 import { row, rows, sb, total } from "@/lib/supabase";
@@ -61,6 +61,51 @@ export async function reviewProjectAction(_: ActionState, fd: FormData): Promise
   }
   revalidatePath("/", "layout");
   redirect(`/admin/verification?done=${decision}`);
+}
+
+/**
+ * Team moderation of any listing (All projects):
+ * - hide:    live → taken offline. The lister can edit it and send it back for review.
+ * - relist:  taken offline → live again, without a new review.
+ * - trash:   any listing → trash. Gone from buyers and the lister; deleted for good after TRASH_DAYS.
+ * - restore: trash → whatever it was before.
+ */
+export async function moderateProjectAction(fd: FormData) {
+  const staff = await requireStaff();
+  const id = String(fd.get("project_id"));
+  const op = String(fd.get("op"));
+  if (!isUuid(id)) return;
+  const db = await sb();
+  const p = row<Pick<Project, "id" | "title" | "slug" | "lister_id" | "status" | "status_before_trash">>(
+    await db.from("projects").select("id,title,slug,lister_id,status,status_before_trash").eq("id", id).maybeSingle(),
+  );
+  if (!p) return;
+
+  // Each update re-checks the status it expects, so two people clicking at once can't clash.
+  const change = async (from: ProjectStatus, patch: Partial<Project>) =>
+    rows(await db.from("projects").update(patch).eq("id", id).eq("status", from).select("id")).length > 0;
+
+  if (op === "hide" && p.status === "verified") {
+    if (!(await change("verified", { status: "hidden" }))) return;
+    await notify(p.lister_id, "Your property was taken offline", `${p.title} is no longer shown to buyers. Edit it to send it back for review, or call us.`, `/my-projects/${p.id}/edit`);
+    await logActivity(staff, "project.hidden", { type: "project", id }, { title: p.title });
+  } else if (op === "relist" && p.status === "hidden") {
+    if (!(await change("hidden", { status: "verified" }))) return;
+    await notify(p.lister_id, "Your property is live again", `${p.title} is visible to buyers again.`, `/projects/${p.slug}`);
+    await logActivity(staff, "project.relisted", { type: "project", id }, { title: p.title });
+  } else if (op === "trash" && p.status !== "trashed") {
+    if (!(await change(p.status, { status: "trashed", status_before_trash: p.status, trashed_at: new Date().toISOString() }))) return;
+    await notify(p.lister_id, "Your property was removed", `Our team removed ${p.title} from Real Growth. Call us if you think this is a mistake.`, "/my-projects");
+    await logActivity(staff, "project.trashed", { type: "project", id }, { title: p.title, was: p.status });
+  } else if (op === "restore" && p.status === "trashed") {
+    const back = p.status_before_trash ?? "hidden";
+    if (!(await change("trashed", { status: back, status_before_trash: null, trashed_at: null }))) return;
+    if (back === "verified") await notify(p.lister_id, "Your property is live again", `${p.title} is visible to buyers again.`, `/projects/${p.slug}`);
+    await logActivity(staff, "project.restored", { type: "project", id }, { title: p.title, to: back });
+  } else {
+    return;
+  }
+  revalidatePath("/", "layout");
 }
 
 export async function setBlockedAction(fd: FormData) {

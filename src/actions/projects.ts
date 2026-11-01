@@ -3,17 +3,28 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { logActivity } from "@/lib/activity";
-import { getSessionUser, requireLister } from "@/lib/auth";
+import { logActivity, notify } from "@/lib/activity";
+import { getSessionUser, requireLister, requireStaff } from "@/lib/auth";
 import { destroyMedia, isOwnUpload, type UploadKind } from "@/lib/cloudinary";
 import { MAX_PHOTOS, MAX_VIDEOS, type ProjectStatus } from "@/lib/constants";
 import { slugify } from "@/lib/format";
 import { row, rows, sb } from "@/lib/supabase";
-import type { ActionState, Project } from "@/lib/types";
+import type { ActionState, Project, SessionUser } from "@/lib/types";
 import { fieldErrors, formValues, projectSchema } from "@/lib/validators";
 
 /** Fields whose change sends a live project back to review (Architecture §3.2). */
-const KEY_FIELDS = ["price", "area_id", "maharera_no", "address_line", "purpose", "segment", "property_type_id"] as const;
+const KEY_FIELDS = [
+  "price",
+  "area_id",
+  "maharera_no",
+  "building_name",
+  "address_line",
+  "landmark",
+  "pincode",
+  "purpose",
+  "segment",
+  "property_type_id",
+] as const;
 
 const SAVE_FAILED = "We couldn't save your property just now. Please try again.";
 
@@ -57,7 +68,17 @@ function parseMedia(fd: FormData, userId: string, existing: SavedMedia[]) {
 }
 
 export async function saveProjectAction(_: ActionState, fd: FormData): Promise<ActionState> {
-  const user = await requireLister("/list-project");
+  return saveProject(await requireLister("/list-project"), fd, false);
+}
+
+/** Our team edits any listing (All projects → Edit). Their changes don't send it back for review. */
+export async function staffSaveProjectAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  if (!fd.get("project_id")) return { message: "We couldn't find this property." };
+  return saveProject(await requireStaff(), fd, true);
+}
+
+// Not exported: a "use server" export would be callable from the browser with any user.
+async function saveProject(user: SessionUser, fd: FormData, byStaff: boolean): Promise<ActionState> {
   const values = formValues(fd);
   delete values.media;
   const projectId = String(fd.get("project_id") ?? "") || null;
@@ -66,7 +87,11 @@ export async function saveProjectAction(_: ActionState, fd: FormData): Promise<A
   let p: Project | null = null;
   let existing: SavedMedia[] = [];
   if (projectId) {
-    if (/^[0-9a-f-]{36}$/i.test(projectId)) p = row<Project>(await db.from("projects").select("*").eq("id", projectId).eq("lister_id", user.id).maybeSingle());
+    if (/^[0-9a-f-]{36}$/i.test(projectId)) {
+      let q = db.from("projects").select("*").eq("id", projectId);
+      if (!byStaff) q = q.eq("lister_id", user.id).neq("status", "trashed");
+      p = row<Project>(await q.maybeSingle());
+    }
     if (!p) return { message: "We couldn't find this property." };
     existing = rows<SavedMedia>(await db.from("project_media").select("id,cloudinary_public_id,kind").eq("project_id", p.id).order("sort_order"));
   }
@@ -89,6 +114,7 @@ export async function saveProjectAction(_: ActionState, fd: FormData): Promise<A
   const uploads = media.flatMap((m, i) => ("id" in m ? [] : [{ ...m, sort_order: i }]));
   const kept = media.flatMap((m, i) => ("id" in m ? [{ id: m.id, sort_order: i }] : []));
 
+  if (!p && byStaff) return { message: "We couldn't find this property." };
   if (!p) {
     const { data, error } = await db
       .from("projects")
@@ -110,13 +136,14 @@ export async function saveProjectAction(_: ActionState, fd: FormData): Promise<A
   const removed = existing.filter((m) => m.kind !== "brochure" && !kept.some((k) => k.id === m.id));
 
   const keyChanged = KEY_FIELDS.some((k) => String(p[k] ?? "") !== String(input[k] ?? ""));
-  const backToReview = p.status === "rejected" || (p.status === "verified" && keyChanged);
+  // A listing our team took offline goes back to the queue once the lister has edited it.
+  const backToReview = !byStaff && (p.status === "rejected" || p.status === "hidden" || (p.status === "verified" && keyChanged));
 
   const { error } = await db
     .from("projects")
     .update({ ...input, ...(backToReview ? { status: "unverified", rejection_reason: null } : {}) })
     .eq("id", p.id)
-    .eq("lister_id", user.id);
+    .eq("lister_id", p.lister_id);
   if (error) {
     console.error(`[project.update] ${error.message}`);
     return { values, message: SAVE_FAILED };
@@ -132,6 +159,12 @@ export async function saveProjectAction(_: ActionState, fd: FormData): Promise<A
     if (inserted.error) console.error(`[project.update] photos: ${inserted.error.message}`);
   }
 
+  if (byStaff) {
+    await notify(p.lister_id, "Our team updated your property", `We made some changes to ${input.title}. Take a look and call us if anything is wrong.`, `/my-projects/${p.id}/edit`);
+    await logActivity(user, "project.staff_edited", { type: "project", id: p.id }, { title: input.title, key_fields_changed: keyChanged });
+    revalidatePath("/", "layout");
+    redirect("/admin/projects?saved=1");
+  }
   await logActivity(user, backToReview ? "project.resubmitted" : "project.edited", { type: "project", id: p.id }, { title: input.title, key_fields_changed: keyChanged });
   revalidatePath("/", "layout");
   redirect(`/my-projects?saved=${backToReview || p.status === "unverified" ? "review" : "live"}`);
@@ -143,7 +176,9 @@ export async function setProjectStatusAction(fd: FormData) {
   const status = String(fd.get("status")) as ProjectStatus;
   if (!["withdrawn", "sold"].includes(status)) return;
   const db = await sb();
-  const updated = rows<{ title: string }>(await db.from("projects").update({ status }).eq("id", id).eq("lister_id", user.id).select("title"));
+  const updated = rows<{ title: string }>(
+    await db.from("projects").update({ status }).eq("id", id).eq("lister_id", user.id).neq("status", "trashed").select("title"),
+  );
   if (updated[0]) await logActivity(user, `project.${status}`, { type: "project", id }, { title: updated[0].title });
   revalidatePath("/", "layout");
 }

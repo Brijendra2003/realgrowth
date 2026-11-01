@@ -314,12 +314,12 @@ export default async function HomePage() {
       {/* ───────────── Partners ───────────── */}
       <section className="py-20">
         <div className="container-page">
-          <SectionHeading eyebrow="For developers, owners & brokers" title="List free." accent="Get real enquiries." align="center" description="Short form, plain language. You'll be live as soon as our team has checked your listing." />
+          <SectionHeading eyebrow="For owners, brokers & developers" title="List free." accent="Get real enquiries." align="center" description="Short form, plain language. You'll be live as soon as our team has checked your listing." />
           <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-3">
             {[
               { role: "owner", title: "Property owners", tag: "Sell or rent your own place", points: ["List in about 5 minutes", "No brokerage on direct deals", "Calls come straight to you"] },
-              { role: "developer", title: "Developers", tag: "Launch new projects", points: ["MahaRERA badge on every project", "Lead inbox with stages & site visits", "Repeat-buyer insights across projects"], featured: true },
               { role: "broker", title: "Brokers & channel partners", tag: "Grow your client base", points: ["List for multiple clients", "Track every lead to closure", "WhatsApp & call in one tap"] },
+              { role: "developer", title: "Developers", tag: "Launch new projects", points: ["MahaRERA badge on every project", "Lead inbox with stages & site visits", "Repeat-buyer insights across projects"], featured: true },
             ].map((c) => (
               <div
                 key={c.role}
