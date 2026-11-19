@@ -34,7 +34,7 @@ export function MobileNav({ user }: { user: SessionUser | null }) {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="grid h-10 w-10 place-items-center rounded-full text-ink hover:bg-sand lg:hidden" aria-label="Open menu">
+      <button type="button" onClick={() => setOpen(true)} className="menu-trigger grid h-10 w-10 place-items-center rounded-full text-ink hover:bg-sand lg:hidden" aria-label="Open menu">
         <Menu className="h-6 w-6" strokeWidth={1.5} />
       </button>
       {open && (

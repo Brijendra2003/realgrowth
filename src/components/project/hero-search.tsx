@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Building, Home, KeyRound, MapPin, Search, Sparkles, Wallet } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Building, ChevronDown, Home, KeyRound, Search, Sparkles } from "lucide-react";
 import { AREA_ZONES, BUDGETS_RENT, BUDGETS_SALE, PROPERTY_TYPES } from "@/lib/constants";
 import { slugify } from "@/lib/format";
 
@@ -12,6 +12,19 @@ const TABS = [
   { key: "commercial", label: "Commercial", icon: Building, hidden: { segment: "commercial" } },
 ] as const;
 
+/** Segmented field: small caps label over a borderless select. */
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="relative block min-w-0 cursor-pointer px-5 py-2.5 transition hover:bg-canvas/70 focus-within:bg-canvas/70">
+      <span className="block text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-muted">{label}</span>
+      {children}
+      <ChevronDown className="pointer-events-none absolute bottom-3.5 right-4 h-4 w-4 text-muted" strokeWidth={1.8} />
+    </label>
+  );
+}
+
+const selectCls = "mt-0.5 w-full cursor-pointer appearance-none truncate bg-transparent pr-6 text-[0.95rem] font-medium text-ink outline-none";
+
 export function HeroSearch() {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("buy");
   const current = TABS.find((t) => t.key === tab)!;
@@ -19,8 +32,8 @@ export function HeroSearch() {
   const types = tab === "commercial" ? PROPERTY_TYPES.filter((t) => t.segment === "commercial") : PROPERTY_TYPES;
 
   return (
-    <div className="relative rounded-[1.6rem] border border-line bg-paper/95 p-2 shadow-pop backdrop-blur">
-      <div role="tablist" aria-label="What are you looking for" className="no-scrollbar flex gap-1 overflow-x-auto p-1">
+    <div className="glass rounded-[1.75rem] p-1.5">
+      <div role="tablist" aria-label="What are you looking for" className="no-scrollbar flex gap-1 overflow-x-auto px-1 pb-1.5 pt-0.5">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -28,24 +41,26 @@ export function HeroSearch() {
             role="tab"
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
-            className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-              tab === t.key ? "bg-brand-green text-white shadow" : "text-ink-soft hover:bg-sand"
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[0.82rem] font-semibold transition ${
+              tab === t.key ? "bg-brand-green-900 text-white shadow-sm" : "text-ink-soft hover:bg-white/70 hover:text-ink"
             }`}
           >
-            <t.icon className="h-4 w-4" strokeWidth={1.8} />
+            <t.icon className="h-3.5 w-3.5" strokeWidth={1.9} />
             {t.label}
           </button>
         ))}
       </div>
 
-      <form action="/projects" method="get" className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+      <form
+        action="/projects"
+        method="get"
+        className="grid grid-cols-1 divide-y divide-line-soft overflow-hidden rounded-[1.35rem] bg-white shadow-card sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:divide-x sm:divide-y-0"
+      >
         {Object.entries(current.hidden).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
-        <label className="relative block sm:col-span-3">
-          <span className="sr-only">Area</span>
-          <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-gold" strokeWidth={1.8} />
-          <select name="area" className="input !pl-10" defaultValue="">
+        <Field label="Location">
+          <select name="area" className={selectCls} defaultValue="">
             <option value="">All areas, Mira Road → Dahanu</option>
             {AREA_ZONES.map((z) => (
               <optgroup key={z.zone} label={z.zone}>
@@ -57,11 +72,9 @@ export function HeroSearch() {
               </optgroup>
             ))}
           </select>
-        </label>
-        <label className="relative block">
-          <span className="sr-only">Property type</span>
-          <Home className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-gold" strokeWidth={1.8} />
-          <select name="type" className="input !pl-10" defaultValue="">
+        </Field>
+        <Field label="Property type">
+          <select name="type" className={selectCls} defaultValue="">
             <option value="">Any type</option>
             {types.map((t) => (
               <option key={t.slug} value={t.slug}>
@@ -69,11 +82,9 @@ export function HeroSearch() {
               </option>
             ))}
           </select>
-        </label>
-        <label className="relative block">
-          <span className="sr-only">Budget</span>
-          <Wallet className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-gold" strokeWidth={1.8} />
-          <select name="budget" className="input !pl-10" defaultValue="" key={tab}>
+        </Field>
+        <Field label="Budget">
+          <select name="budget" className={selectCls} defaultValue="" key={tab}>
             <option value="">Any budget</option>
             {budgets.map((b) => (
               <option key={b.value} value={b.value}>
@@ -81,11 +92,16 @@ export function HeroSearch() {
               </option>
             ))}
           </select>
-        </label>
-        <button type="submit" className="btn btn-primary btn-lg">
-          <Search className="h-4 w-4" strokeWidth={2} />
-          Search
-        </button>
+        </Field>
+        <div className="p-1.5 !border-0 sm:pl-0">
+          <button
+            type="submit"
+            className="flex h-full min-h-12 w-full items-center justify-center gap-2 rounded-[1.1rem] bg-brand-green-900 px-6 text-[0.95rem] font-semibold text-white transition hover:bg-brand-green focus-visible:bg-brand-green sm:rounded-full"
+          >
+            <Search className="h-4 w-4" strokeWidth={2.2} />
+            Search
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { ChevronDown, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { ArrowRight, ChevronDown, MapPin, Phone, Search, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { AREA_ZONES, SITE } from "@/lib/constants";
 import { slugify } from "@/lib/format";
@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getUnreadCount } from "@/lib/queries";
 import { UserMenu } from "./user-menu";
 import { MobileNav } from "./mobile-nav";
+import { ScrollState } from "./scroll-state";
 
 export const NAV = [
   { href: "/projects?purpose=sale", label: "Buy", mega: true },
@@ -35,17 +36,21 @@ export function SiteHeader() {
         </div>
       </div>
 
-      <div className="border-b border-line/80 bg-paper/85 backdrop-blur-xl supports-[backdrop-filter]:bg-paper/75">
-        <div className="container-page flex h-[4.5rem] items-center gap-6">
+      <ScrollState />
+      <div className="site-header-bar border-b border-line/80 bg-paper/85 backdrop-blur-xl transition-[background-color,border-color] duration-300 supports-[backdrop-filter]:bg-paper/75">
+        <div className="container-page relative flex h-[4.5rem] items-center gap-6">
           <Logo />
 
-          <nav aria-label="Main" className="ml-4 hidden items-center gap-1 lg:flex">
+          <nav
+            aria-label="Main"
+            className="hidden items-center gap-0.5 rounded-full xl:absolute xl:left-1/2 xl:-translate-x-1/2 border border-line bg-canvas/80 p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] lg:flex"
+          >
             {NAV.map((item) =>
               item.mega ? (
                 <div key={item.label} className="group relative">
                   <Link
                     href={item.href}
-                    className="flex items-center gap-1 rounded-full px-3.5 py-2 text-[0.92rem] font-medium text-ink-soft transition hover:bg-sand hover:text-ink"
+                    className="flex items-center gap-1 rounded-full px-3 py-1.5 text-[0.85rem] font-medium xl:px-4 xl:text-[0.88rem] text-ink-soft transition hover:bg-white hover:text-ink hover:shadow-sm"
                   >
                     {item.label}
                     <ChevronDown className="h-3.5 w-3.5 transition group-hover:rotate-180" strokeWidth={2} />
@@ -56,7 +61,7 @@ export function SiteHeader() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className="rounded-full px-3.5 py-2 text-[0.92rem] font-medium text-ink-soft transition hover:bg-sand hover:text-ink"
+                  className="rounded-full px-3 py-1.5 text-[0.85rem] font-medium xl:px-4 xl:text-[0.88rem] text-ink-soft transition hover:bg-white hover:text-ink hover:shadow-sm"
                 >
                   {item.label}
                 </Link>
@@ -65,6 +70,13 @@ export function SiteHeader() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <Link
+              href="/projects"
+              aria-label="Search properties"
+              className="hidden h-10 w-10 place-items-center rounded-full border border-line bg-paper text-ink-soft transition hover:border-brand-green/40 hover:text-brand-green xl:grid"
+            >
+              <Search className="h-4 w-4" strokeWidth={1.9} />
+            </Link>
             <Suspense fallback={<div className="h-10 w-40 animate-pulse rounded-full bg-sand" />}>
               <HeaderAuth />
             </Suspense>
@@ -80,14 +92,20 @@ async function HeaderAuth() {
   const unread = user ? await getUnreadCount(user.id) : 0;
   return (
     <>
-      <Link href="/list-project" className="btn btn-gold btn-sm hidden sm:inline-flex">
+      <Link
+        href="/list-project"
+        className="group hidden h-10 items-center gap-2.5 rounded-full bg-brand-green-900 py-1 pl-4 pr-4 text-[0.88rem] xl:pr-1 font-semibold text-white transition hover:bg-brand-green sm:inline-flex"
+      >
         List property
-        <span className="rounded-full bg-brand-green px-1.5 py-px text-[0.6rem] font-bold tracking-wider text-brand-cream">FREE</span>
+        <span className="rounded-full bg-brand-gold px-1.5 py-px text-[0.58rem] font-bold tracking-wider text-brand-green-900">FREE</span>
+        <span className="hidden h-8 w-8 place-items-center rounded-full bg-white text-brand-green-900 transition duration-300 group-hover:-rotate-45 xl:grid">
+          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.2} />
+        </span>
       </Link>
       {user ? (
         <UserMenu user={user} unread={unread} />
       ) : (
-        <Link href="/login" className="btn btn-outline btn-sm hidden sm:inline-flex">
+        <Link href="/login" className="btn btn-outline btn-sm hidden bg-paper/80 sm:inline-flex">
           Sign in
         </Link>
       )}

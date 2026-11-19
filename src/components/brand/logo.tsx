@@ -37,10 +37,10 @@ export function Logo({ tone = "dark", compact = false }: { tone?: "dark" | "ligh
       </span>
       {!compact && (
         <span className="flex flex-col leading-none">
-          <span className={`font-display text-[1.05rem] font-semibold tracking-[0.24em] ${light ? "text-brand-cream" : "text-brand-green"}`}>
+          <span className={`logo-word font-display text-[1.05rem] font-semibold tracking-[0.24em] ${light ? "text-brand-cream" : "text-brand-green"}`}>
             REAL GROWTH
           </span>
-          <span className={`mt-1 flex items-center gap-1.5 text-[0.6rem] font-semibold tracking-[0.3em] ${light ? "text-white/70" : "text-muted"}`}>
+          <span className={`logo-sub mt-1 flex items-center gap-1.5 text-[0.6rem] font-semibold tracking-[0.3em] ${light ? "text-white/70" : "text-muted"}`}>
             <span className="h-px w-3 bg-brand-gold" />
             REAL ESTATE AGENT
           </span>

@@ -2,35 +2,60 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowUpRight,
   BadgeCheck,
   Building,
   Building2,
   Check,
   ClipboardCheck,
   Handshake,
+  Heart,
   Home as HomeIcon,
   KeyRound,
   LandPlot,
+  LayoutGrid,
+  MapPin,
   MessageSquareText,
+  Phone,
   PhoneCall,
   Search,
   ShieldCheck,
   Sparkles,
+  TrainFront,
   UserRound,
 } from "lucide-react";
+import { FeaturedListings, type FeaturedItem } from "@/components/project/featured-listings";
 import { HeroSearch } from "@/components/project/hero-search";
 import { ProjectCard } from "@/components/project/project-card";
-import { LeafSprig, Ornament, SectionHeading, Sparkle } from "@/components/ui/decor";
+import { LeafSprig, Ornament, SectionHeading } from "@/components/ui/decor";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getSessionUser } from "@/lib/auth";
-import { slugify } from "@/lib/format";
+import { SITE } from "@/lib/constants";
+import { formatPrice, slugify } from "@/lib/format";
 import { getHomeStats, getNewestProjects, getSavedProjects } from "@/lib/queries";
 
 // Reads the session or URL on every request, so navigations may block on the server.
 export const instant = false;
 
-const HERO_IMG = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1400&q=80&auto=format&fit=crop";
-const HERO_IMG_2 = "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&q=80&auto=format&fit=crop";
+const HERO_IMG = "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=2400&q=80&auto=format&fit=crop";
+
+const PROMISES = [
+  "Verified listings",
+  "Direct to owner",
+  "MahaRERA checked",
+  "Local to the Western line",
+  "Free to list",
+  "Mira Road → Dahanu Road",
+];
+
+const RAIL = [
+  { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/projects", label: "All listings", icon: LayoutGrid },
+  { href: "/projects?purpose=rent", label: "Rent", icon: KeyRound },
+  { href: "/projects?category=new_project", label: "New projects", icon: Sparkles },
+  { href: "/projects?segment=commercial", label: "Commercial", icon: Building },
+  { href: "/saved", label: "Saved homes", icon: Heart },
+];
 
 const STATIONS = [
   "Mira Road", "Bhayandar", "Naigaon", "Vasai Road", "Nalasopara", "Virar", "Vaitarna",
@@ -40,6 +65,13 @@ const STATIONS = [
 export default async function HomePage() {
   const [stats, newest, user] = await Promise.all([getHomeStats(), getNewestProjects(6), getSessionUser()]);
   const savedIds = new Set(user ? (await getSavedProjects(user.id)).map((p) => p.id) : []);
+  const featured: FeaturedItem[] = newest.map((p) => ({
+    slug: p.slug,
+    title: p.title,
+    cover: p.cover ?? null,
+    location: `${p.area.name}, ${p.area.zone}`,
+    price: `${formatPrice(p.price, p.purpose)}${p.purpose === "rent" ? "/month" : ""}`,
+  }));
 
   const categories = [
     { href: "/projects?category=new_project", label: "New projects", body: "Under construction, MahaRERA checked", count: stats.newProjects, icon: Sparkles, tone: "bg-brand-green-50 text-brand-green" },
@@ -53,79 +85,158 @@ export default async function HomePage() {
   return (
     <>
       {/* ───────────── Hero ───────────── */}
-      <section className="grain relative overflow-hidden">
-        <div className="pointer-events-none absolute -left-24 top-24 h-72 w-72 rounded-full bg-brand-cream/50 blur-3xl" />
-        <div className="pointer-events-none absolute right-0 top-0 h-[34rem] w-[34rem] rounded-full bg-sage/70 blur-3xl" />
-
-        <div className="container-page relative grid grid-cols-1 items-center gap-12 pb-16 pt-10 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,1fr)] lg:pb-24 lg:pt-16">
-          <div className="animate-fade-up">
-            <p className="inline-flex items-center gap-2 rounded-full border border-brand-green/15 bg-paper/80 px-3 py-1.5 text-xs font-semibold text-brand-green shadow-sm">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-gold opacity-70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-gold" />
+      {/* Quick-browse rail — fixed to the left edge, vertically centred, stays while scrolling.
+          Shown from 1440px, where the page container leaves enough margin that it never covers content. */}
+      <nav
+        aria-label="Quick browse"
+        className="glass fixed left-5 top-1/2 z-30 hidden -translate-y-1/2 flex-col items-center gap-1 rounded-full p-1.5 min-[1440px]:flex"
+      >
+            {RAIL.map((r, i) => (
+              <Link
+                key={r.label}
+                href={r.href}
+                aria-label={r.label}
+                aria-current={i === 0 ? "page" : undefined}
+                className={`group/rail relative grid h-11 w-11 place-items-center rounded-full transition ${
+                  i === 0 ? "bg-brand-green-900 text-white" : "text-ink-soft hover:bg-white hover:text-brand-green"
+                }`}
+              >
+                <r.icon className="h-[1.1rem] w-[1.1rem]" strokeWidth={1.7} />
+                <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-full bg-brand-green-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 shadow-card transition group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100">
+                  {r.label}
+                </span>
+              </Link>
+            ))}
+            <span className="my-1.5 h-px w-6 bg-ink/15" aria-hidden="true" />
+            <a
+              href={`tel:${SITE.phone.replace(/\s/g, "")}`}
+              aria-label={`Call us on ${SITE.phone}`}
+              className="group/rail relative grid h-11 w-11 place-items-center rounded-full bg-brand-gold text-brand-green-900 transition hover:bg-[#f0b623]"
+            >
+              <Phone className="h-[1.05rem] w-[1.05rem]" strokeWidth={1.8} />
+              <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-full bg-brand-green-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 shadow-card transition group-hover/rail:opacity-100 group-focus-visible/rail:opacity-100">
+                Call {SITE.phone}
               </span>
-              {stats.liveCount > 0
-                ? `${stats.liveCount} verified ${stats.liveCount === 1 ? "listing" : "listings"} live today`
-                : "Every listing verified before it goes live"}
-            </p>
-            <h1 className="mt-5 text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-6xl lg:text-[4.1rem]">
-              Find a home
-              <br />
-              that <span className="accent-serif text-brand-green">grows with you.</span>
-            </h1>
-            <svg viewBox="0 0 300 14" className="mt-2 h-3 w-64 text-brand-gold" aria-hidden="true">
-              <path d="M2 10c60-8 140-10 296-4" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" />
-            </svg>
-            <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-soft">
-              Verified flats, villas, shops and offices from <strong className="font-semibold text-ink">Mira Road to Dahanu Road</strong>. Every listing is
-              checked by our team, and your enquiry goes straight to the owner — not a call centre.
-            </p>
+            </a>
+          </nav>
 
-            <div className="mt-8">
-              <HeroSearch />
-            </div>
+      <section data-hero-overlay className="-mt-[4.5rem]">
+        <div className="relative isolate overflow-hidden bg-brand-green-900">
+          {/* Photo: building on the right stays clear; a dark fade on the left carries the copy */}
+          <Image src={HERO_IMG} alt="Modern home with a pool" fill preload sizes="100vw" className="-z-10 object-cover object-[68%_center]" />
+          <div
+            className="absolute inset-0 -z-10 bg-[rgb(8_12_10/0.55)] lg:bg-transparent lg:bg-[linear-gradient(90deg,rgb(8_12_10/0.8)_0%,rgb(8_12_10/0.6)_28%,rgb(8_12_10/0.12)_50%,rgb(8_12_10/0)_62%)]"
+            aria-hidden="true"
+          />
+          <div className="absolute inset-x-0 top-0 -z-10 h-40 bg-gradient-to-b from-black/35 to-transparent" aria-hidden="true" />
+          <div className="absolute inset-x-0 bottom-0 -z-10 h-2/5 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true" />
 
-            <ul className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-soft">
-              {["Checked by our team", "MahaRERA verified projects", "Direct to owner or developer"].map((t) => (
-                <li key={t} className="flex items-center gap-2">
-                  <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-green text-white">
-                    <Check className="h-3 w-3" strokeWidth={3} />
+          <div className="container-page relative flex flex-col pb-6 pt-[calc(4.5rem+2.5rem)] sm:pb-8 sm:pt-[calc(4.5rem+3rem)] lg:min-h-[max(48rem,calc(100svh-2.25rem))] lg:pb-10">
+            {/* Copy + search on the left, vertically centred in the space above the cards */}
+            <div className="flex flex-1 flex-col justify-center">
+              <div className="max-w-[40rem] animate-fade-up [text-shadow:0_2px_24px_rgb(0_0_0/0.25)]">
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-white/85">
+                  Homes <span className="h-px w-5 bg-white/50" aria-hidden="true" /> Commercial <span className="h-px w-5 bg-white/50" aria-hidden="true" /> Plots
+                </p>
+                <h1 className="mt-5 text-[2.8rem] font-light leading-[1] tracking-[-0.045em] text-white sm:text-7xl lg:text-[5.4rem]">
+                  Homes that
+                  <br />
+                  <span className="font-normal text-brand-cream">grow with you</span>
+                </h1>
+                <p className="mt-6 max-w-md text-[1.05rem] leading-relaxed text-white/85">
+                  Verified flats, villas, shops and offices from Mira Road to Dahanu Road. Every listing is checked by our team, and your enquiry
+                  goes straight to the owner.
+                </p>
+                <p className="mt-4 inline-flex items-center gap-2 text-[0.8rem] font-medium text-white/80">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-gold opacity-70" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-gold" />
                   </span>
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
+                  {stats.liveCount > 0
+                    ? `${stats.liveCount} verified ${stats.liveCount === 1 ? "listing" : "listings"} live today`
+                    : "Every listing verified before it goes live"}
+                </p>
+              </div>
 
-          {/* Organic photo collage */}
-          <div className="relative mx-auto hidden aspect-[4/4.4] w-full max-w-[34rem] md:block">
-            <div className="absolute inset-[6%_4%_10%_10%] overflow-hidden rounded-[58%_42%_47%_53%/45%_50%_50%_55%] shadow-pop ring-8 ring-paper">
-              <Image src={HERO_IMG} alt="Residential tower on the Western line" fill priority sizes="(min-width:1024px) 40vw, 80vw" className="object-cover" />
-            </div>
-            <div className="absolute bottom-0 left-0 w-44 overflow-hidden rounded-[2rem] shadow-pop ring-[6px] ring-paper">
-              <div className="relative aspect-[4/5]">
-                <Image src={HERO_IMG_2} alt="Bright living room" fill sizes="200px" className="object-cover" />
+              <div className="mt-8 w-full max-w-[46rem] animate-fade-up [animation-delay:120ms]">
+                <HeroSearch />
               </div>
             </div>
-            <div className="absolute right-0 top-[18%] w-52 animate-float rounded-[46%_54%_42%_58%/55%_45%_55%_45%] bg-brand-green px-7 py-8 text-center text-brand-cream shadow-pop">
-              <ShieldCheck className="mx-auto h-7 w-7 text-brand-gold" strokeWidth={1.5} />
-              <p className="mt-2 font-display text-[0.95rem] font-semibold leading-snug text-white">Every listing checked</p>
-              <p className="mt-1 text-xs leading-snug text-brand-cream/80">Ownership, photos & MahaRERA — before it goes live</p>
-            </div>
-            <div className="absolute bottom-[14%] right-[6%] flex items-center gap-3 rounded-2xl border border-line bg-paper/95 p-3 pr-4 shadow-lift backdrop-blur">
-              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-gold-50 text-[#8a6100]">
-                <PhoneCall className="h-5 w-5" strokeWidth={1.5} />
-              </span>
-              <div>
-                <p className="text-sm font-semibold">Lister calls you back</p>
-                <p className="text-xs text-muted">No call-centre in between</p>
+
+            {/* Bottom glass cards */}
+            <div className="mt-10 grid grid-cols-1 gap-3 animate-fade-up [animation-delay:240ms] sm:grid-cols-2 lg:mt-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] lg:gap-4 lg:pt-14">
+              <div className="sm:col-span-2 lg:col-span-1">
+                {featured.length > 0 ? (
+                  <FeaturedListings items={featured} />
+                ) : (
+                  <Link href="/projects" className="glass flex h-full items-center gap-4 rounded-[1.6rem] p-4">
+                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-brand-green-50 text-brand-green">
+                      <Sparkles className="h-6 w-6" strokeWidth={1.5} />
+                    </span>
+                    <span>
+                      <span className="block font-display text-lg font-semibold leading-snug">The first listings are being verified</span>
+                      <span className="mt-0.5 inline-flex items-center gap-1 text-sm font-semibold text-brand-green">
+                        Browse the corridor <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+                      </span>
+                    </span>
+                  </Link>
+                )}
               </div>
+
+              <div className="glass grid grid-cols-3 items-center divide-x divide-ink/10 rounded-[1.6rem] px-1 py-5">
+                {[
+                  stats.liveCount > 0
+                    ? { icon: ShieldCheck, v: `${stats.liveCount}`, l: "Verified listings" }
+                    : { icon: ShieldCheck, v: "100%", l: "Listings checked" },
+                  { icon: MapPin, v: `${stats.areaCount}`, l: "Areas covered" },
+                  { icon: TrainFront, v: `${STATIONS.length}`, l: "Stations on our line" },
+                ].map((s) => (
+                  <div key={s.l} className="px-3 sm:px-4">
+                    <s.icon className="h-5 w-5 text-brand-green" strokeWidth={1.5} />
+                    <p className="mt-2.5 font-display text-[1.65rem] font-semibold leading-none tracking-tight text-ink">{s.v}</p>
+                    <p className="mt-1.5 text-[0.7rem] leading-tight text-muted">{s.l}</p>
+                  </div>
+                ))}
+              </div>
+
+              <Link href="/list-project" className="glass-dark group flex min-h-40 flex-col justify-between rounded-[1.6rem] p-5 text-white">
+                <span className="flex items-start justify-between">
+                  <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-gold text-brand-green-900">
+                    <HomeIcon className="h-5 w-5" strokeWidth={1.7} />
+                  </span>
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-brand-green-900 transition duration-300 group-hover:rotate-45">
+                    <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+                  </span>
+                </span>
+                <span className="mt-6 block">
+                  <span className="block font-display text-lg font-semibold leading-tight">List your property free</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-white/70">Checked within a day. Buyers call you directly.</span>
+                </span>
+              </Link>
             </div>
-            <Sparkle className="absolute left-[8%] top-[4%] h-6 w-6 text-brand-gold" />
-            <Sparkle className="absolute bottom-[34%] left-[42%] h-4 w-4 text-clay" />
           </div>
         </div>
       </section>
+
+      {/* ───────────── Promise strip (full width) ───────────── */}
+      <div className="group relative overflow-hidden bg-brand-green-900 py-4 text-brand-cream">
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-brand-green-900 to-transparent sm:w-32" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-brand-green-900 to-transparent sm:w-32" />
+        <div className="flex w-max animate-marquee group-hover:[animation-play-state:paused]">
+          {[0, 1].map((copy) => (
+            <ul key={copy} aria-hidden={copy === 1} className="flex shrink-0 items-center">
+              {PROMISES.map((t) => (
+                <li key={t} className="flex items-center gap-8 pr-8 text-[0.78rem] font-semibold uppercase tracking-[0.24em] whitespace-nowrap">
+                  {t}
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 text-brand-gold" fill="currentColor" aria-hidden="true">
+                    <path d="M12 0c.6 6.4 5.6 11.4 12 12-6.4.6-11.4 5.6-12 12-.6-6.4-5.6-11.4-12-12C6.4 11.4 11.4 6.4 12 0z" />
+                  </svg>
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      </div>
 
       {/* ───────────── Categories ───────────── */}
       <section className="border-y border-line bg-paper py-16">
