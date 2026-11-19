@@ -37,13 +37,13 @@ export function SiteHeader() {
       </div>
 
       <ScrollState />
-      <div className="site-header-bar border-b border-line/80 bg-paper/85 backdrop-blur-xl transition-[background-color,border-color] duration-300 supports-[backdrop-filter]:bg-paper/75">
-        <div className="container-page relative flex h-[4.5rem] items-center gap-6">
+      <div className="site-header-bar border-b border-line/80 bg-paper/85 shadow-[0_12px_32px_-18px_rgb(23_32_29/0.35)] backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-300 supports-[backdrop-filter]:bg-paper/75">
+        <div className="container-page relative flex h-[4.5rem] items-center gap-4 xl:gap-6">
           <Logo />
 
           <nav
             aria-label="Main"
-            className="hidden items-center gap-0.5 rounded-full xl:absolute xl:left-1/2 xl:-translate-x-1/2 border border-line bg-canvas/80 p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] lg:flex"
+            className="hidden shrink-0 items-center gap-0.5 rounded-full border border-line bg-canvas/80 p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.8),0_8px_20px_-12px_rgb(23_32_29/0.3)] lg:mx-auto lg:flex"
           >
             {NAV.map((item) =>
               item.mega ? (
@@ -69,7 +69,7 @@ export function SiteHeader() {
             )}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
             <Link
               href="/projects"
               aria-label="Search properties"
@@ -97,7 +97,7 @@ async function HeaderAuth() {
         className="group hidden h-10 items-center gap-2.5 rounded-full bg-brand-green-900 py-1 pl-4 pr-4 text-[0.88rem] xl:pr-1 font-semibold text-white transition hover:bg-brand-green sm:inline-flex"
       >
         List property
-        <span className="rounded-full bg-brand-gold px-1.5 py-px text-[0.58rem] font-bold tracking-wider text-brand-green-900">FREE</span>
+        <span className="rounded-full bg-brand-gold px-1.5 lg:hidden xl:inline py-px text-[0.58rem] font-bold tracking-wider text-brand-green-900">FREE</span>
         <span className="hidden h-8 w-8 place-items-center rounded-full bg-white text-brand-green-900 transition duration-300 group-hover:-rotate-45 xl:grid">
           <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.2} />
         </span>

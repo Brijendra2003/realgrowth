@@ -303,6 +303,7 @@
 html:has([data-hero-overlay]):not([data-scrolled]) .site-header-bar {
   background-color: transparent;
   border-color: transparent;
+  box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }

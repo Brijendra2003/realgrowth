@@ -44,7 +44,7 @@ export function UserMenu({ user, unread }: { user: SessionUser; unread: number }
           className="flex items-center gap-2 rounded-full border border-line bg-paper py-1 pl-1 pr-3 transition hover:border-brand-green/40"
         >
           <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-green text-xs font-bold text-brand-cream">{initials(user.full_name)}</span>
-          <span className="hidden max-w-28 truncate text-sm font-medium md:block">{user.full_name.split(" ")[0]}</span>
+          <span className="hidden max-w-28 truncate text-sm font-medium md:block lg:hidden xl:block">{user.full_name.split(" ")[0]}</span>
           <ChevronDown className={`h-4 w-4 text-muted transition ${open ? "rotate-180" : ""}`} strokeWidth={1.8} />
         </button>
         {open && (
