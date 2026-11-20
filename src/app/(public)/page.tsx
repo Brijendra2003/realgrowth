@@ -2,7 +2,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
-  ArrowUpRight,
   BadgeCheck,
   Building,
   Building2,
@@ -14,24 +13,21 @@ import {
   KeyRound,
   LandPlot,
   LayoutGrid,
-  MapPin,
   MessageSquareText,
   Phone,
   PhoneCall,
   Search,
   ShieldCheck,
   Sparkles,
-  TrainFront,
   UserRound,
 } from "lucide-react";
-import { FeaturedListings, type FeaturedItem } from "@/components/project/featured-listings";
 import { HeroSearch } from "@/components/project/hero-search";
 import { ProjectCard } from "@/components/project/project-card";
 import { LeafSprig, Ornament, SectionHeading } from "@/components/ui/decor";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getSessionUser } from "@/lib/auth";
 import { SITE } from "@/lib/constants";
-import { formatPrice, slugify } from "@/lib/format";
+import { slugify } from "@/lib/format";
 import { getHomeStats, getNewestProjects, getSavedProjects } from "@/lib/queries";
 
 // Reads the session or URL on every request, so navigations may block on the server.
@@ -65,13 +61,6 @@ const STATIONS = [
 export default async function HomePage() {
   const [stats, newest, user] = await Promise.all([getHomeStats(), getNewestProjects(6), getSessionUser()]);
   const savedIds = new Set(user ? (await getSavedProjects(user.id)).map((p) => p.id) : []);
-  const featured: FeaturedItem[] = newest.map((p) => ({
-    slug: p.slug,
-    title: p.title,
-    cover: p.cover ?? null,
-    location: `${p.area.name}, ${p.area.zone}`,
-    price: `${formatPrice(p.price, p.purpose)}${p.purpose === "rent" ? "/month" : ""}`,
-  }));
 
   const categories = [
     { href: "/projects?category=new_project", label: "New projects", body: "Under construction, MahaRERA checked", count: stats.newProjects, icon: Sparkles, tone: "bg-brand-green-50 text-brand-green" },
@@ -120,100 +109,54 @@ export default async function HomePage() {
             </a>
           </nav>
 
-      <section data-hero-overlay className="-mt-[4.5rem]">
-        <div className="relative isolate overflow-hidden bg-brand-green-900">
-          {/* Photo: building on the right stays clear; a dark fade on the left carries the copy */}
-          <Image src={HERO_IMG} alt="Modern home with a pool" fill preload sizes="100vw" className="-z-10 object-cover object-[68%_center]" />
-          <div
-            className="absolute inset-0 -z-10 bg-[rgb(8_12_10/0.55)] lg:bg-transparent lg:bg-[linear-gradient(90deg,rgb(8_12_10/0.8)_0%,rgb(8_12_10/0.6)_28%,rgb(8_12_10/0.12)_50%,rgb(8_12_10/0)_62%)]"
-            aria-hidden="true"
-          />
-          <div className="absolute inset-x-0 top-0 -z-10 h-40 bg-gradient-to-b from-black/35 to-transparent" aria-hidden="true" />
-          <div className="absolute inset-x-0 bottom-0 -z-10 h-2/5 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true" />
+      <section className="relative isolate overflow-hidden bg-paper">
+        {/* Photo on the right, melting into the paper background on the left so the copy stays on a clean surface */}
+        <div className="absolute inset-y-0 right-0 -z-10 w-full lg:w-[64%]" aria-hidden="true">
+          <Image src={HERO_IMG} alt="" fill preload sizes="(min-width: 1024px) 64vw, 100vw" className="object-cover object-[60%_center]" />
+          <div className="absolute inset-0 bg-[rgb(255_253_248/0.86)] lg:bg-transparent lg:bg-[linear-gradient(90deg,var(--color-paper)_0%,rgb(255_253_248/0.92)_14%,rgb(255_253_248/0.35)_38%,rgb(255_253_248/0)_58%)]" />
+          <div className="absolute inset-x-0 top-0 hidden h-24 bg-gradient-to-b from-paper/60 to-transparent lg:block" />
+        </div>
 
-          <div className="container-page relative flex flex-col pb-6 pt-[calc(4.5rem+2.5rem)] sm:pb-8 sm:pt-[calc(4.5rem+3rem)] lg:min-h-[max(48rem,calc(100svh-2.25rem))] lg:pb-10">
-            {/* Copy + search on the left, vertically centred in the space above the cards */}
-            <div className="flex flex-1 flex-col justify-center">
-              <div className="max-w-[40rem] animate-fade-up [text-shadow:0_2px_24px_rgb(0_0_0/0.25)]">
-                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-white/85">
-                  Homes <span className="h-px w-5 bg-white/50" aria-hidden="true" /> Commercial <span className="h-px w-5 bg-white/50" aria-hidden="true" /> Plots
-                </p>
-                <h1 className="mt-5 text-[2.8rem] font-light leading-[1] tracking-[-0.045em] text-white sm:text-7xl lg:text-[5.4rem]">
-                  Homes that
-                  <br />
-                  <span className="font-normal text-brand-cream">grow with you</span>
-                </h1>
-                <p className="mt-6 max-w-md text-[1.05rem] leading-relaxed text-white/85">
-                  Verified flats, villas, shops and offices from Mira Road to Dahanu Road. Every listing is checked by our team, and your enquiry
-                  goes straight to the owner.
-                </p>
-                <p className="mt-4 inline-flex items-center gap-2 text-[0.8rem] font-medium text-white/80">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-gold opacity-70" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-gold" />
-                  </span>
-                  {stats.liveCount > 0
-                    ? `${stats.liveCount} verified ${stats.liveCount === 1 ? "listing" : "listings"} live today`
-                    : "Every listing verified before it goes live"}
-                </p>
+        <div className="container-page flex flex-col pb-8 pt-12 sm:pb-10 sm:pt-16 lg:min-h-[clamp(40rem,calc(100svh-6.75rem),54rem)] lg:pb-12 lg:pt-16">
+          <div className="flex flex-1 flex-col justify-center">
+            <div className="max-w-[36rem] animate-fade-up">
+              <p className="inline-flex items-center gap-2 rounded-full border border-brand-green/15 bg-brand-green-50 px-3 py-1 text-[0.75rem] font-semibold text-brand-green">
+                <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2} />
+                Verified homes, Mira Road → Dahanu Road
+              </p>
+              <h1 className="mt-5 text-[2.75rem] font-bold leading-[1.02] tracking-[-0.04em] text-ink sm:text-6xl lg:text-[4.5rem]">
+                Homes that
+                <br />
+                <span className="text-brand-green">grow with you</span>
+              </h1>
+              <p className="mt-6 max-w-[30rem] text-[1.05rem] leading-relaxed text-ink-soft">
+                Flats, villas, shops and offices along the Western line. Every listing is <strong className="font-semibold text-ink">checked by our team</strong>, and
+                your enquiry goes <strong className="font-semibold text-ink">straight to the owner</strong>.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link href="/projects" className="btn btn-primary btn-lg">
+                  Browse listings <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </Link>
+                <Link href="/list-project" className="btn btn-outline btn-lg bg-paper/80">
+                  <HomeIcon className="h-4 w-4" strokeWidth={1.9} /> List your property
+                </Link>
               </div>
 
-              <div className="mt-8 w-full max-w-[46rem] animate-fade-up [animation-delay:120ms]">
-                <HeroSearch />
-              </div>
-            </div>
-
-            {/* Bottom glass cards */}
-            <div className="mt-10 grid grid-cols-1 gap-3 animate-fade-up [animation-delay:240ms] sm:grid-cols-2 lg:mt-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] lg:gap-4 lg:pt-14">
-              <div className="sm:col-span-2 lg:col-span-1">
-                {featured.length > 0 ? (
-                  <FeaturedListings items={featured} />
-                ) : (
-                  <Link href="/projects" className="glass flex h-full items-center gap-4 rounded-[1.6rem] p-4">
-                    <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-brand-green-50 text-brand-green">
-                      <Sparkles className="h-6 w-6" strokeWidth={1.5} />
-                    </span>
-                    <span>
-                      <span className="block font-display text-lg font-semibold leading-snug">The first listings are being verified</span>
-                      <span className="mt-0.5 inline-flex items-center gap-1 text-sm font-semibold text-brand-green">
-                        Browse the corridor <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
-                      </span>
-                    </span>
-                  </Link>
-                )}
-              </div>
-
-              <div className="glass grid grid-cols-3 items-center divide-x divide-ink/10 rounded-[1.6rem] px-1 py-5">
-                {[
-                  stats.liveCount > 0
-                    ? { icon: ShieldCheck, v: `${stats.liveCount}`, l: "Verified listings" }
-                    : { icon: ShieldCheck, v: "100%", l: "Listings checked" },
-                  { icon: MapPin, v: `${stats.areaCount}`, l: "Areas covered" },
-                  { icon: TrainFront, v: `${STATIONS.length}`, l: "Stations on our line" },
-                ].map((s) => (
-                  <div key={s.l} className="px-3 sm:px-4">
-                    <s.icon className="h-5 w-5 text-brand-green" strokeWidth={1.5} />
-                    <p className="mt-2.5 font-display text-[1.65rem] font-semibold leading-none tracking-tight text-ink">{s.v}</p>
-                    <p className="mt-1.5 text-[0.7rem] leading-tight text-muted">{s.l}</p>
-                  </div>
-                ))}
-              </div>
-
-              <Link href="/list-project" className="glass-dark group flex min-h-40 flex-col justify-between rounded-[1.6rem] p-5 text-white">
-                <span className="flex items-start justify-between">
-                  <span className="grid h-11 w-11 place-items-center rounded-full bg-brand-gold text-brand-green-900">
-                    <HomeIcon className="h-5 w-5" strokeWidth={1.7} />
-                  </span>
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-brand-green-900 transition duration-300 group-hover:rotate-45">
-                    <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
-                  </span>
+              <p className="mt-6 inline-flex items-center gap-2 text-[0.8rem] font-medium text-muted">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-gold opacity-70" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-gold" />
                 </span>
-                <span className="mt-6 block">
-                  <span className="block font-display text-lg font-semibold leading-tight">List your property free</span>
-                  <span className="mt-1 block text-xs leading-relaxed text-white/70">Checked within a day. Buyers call you directly.</span>
-                </span>
-              </Link>
+                {stats.liveCount > 0
+                  ? `${stats.liveCount} verified ${stats.liveCount === 1 ? "listing" : "listings"} live today`
+                  : "Every listing verified before it goes live"}
+              </p>
             </div>
+          </div>
+
+          <div className="mt-10 animate-fade-up [animation-delay:160ms] lg:mt-12">
+            <HeroSearch />
           </div>
         </div>
       </section>

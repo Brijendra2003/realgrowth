@@ -1,108 +1,107 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Building, ChevronDown, Home, KeyRound, Search, Sparkles } from "lucide-react";
+import { Building2, ChevronDown, Home, MapPin, Search, Wallet, type LucideIcon } from "lucide-react";
 import { AREA_ZONES, BUDGETS_RENT, BUDGETS_SALE, PROPERTY_TYPES } from "@/lib/constants";
 import { slugify } from "@/lib/format";
 
-const TABS = [
-  { key: "buy", label: "Buy", icon: Home, hidden: { purpose: "sale" } },
-  { key: "rent", label: "Rent", icon: KeyRound, hidden: { purpose: "rent" } },
-  { key: "new", label: "New projects", icon: Sparkles, hidden: { category: "new_project" } },
-  { key: "commercial", label: "Commercial", icon: Building, hidden: { segment: "commercial" } },
+const INTENTS = [
+  { key: "buy", label: "Buy a home", hidden: { purpose: "sale" } },
+  { key: "rent", label: "Rent", hidden: { purpose: "rent" } },
+  { key: "new", label: "New projects", hidden: { category: "new_project" } },
+  { key: "commercial", label: "Commercial", hidden: { segment: "commercial" } },
 ] as const;
 
-/** Segmented field: small caps label over a borderless select. */
-function Field({ label, children }: { label: string; children: ReactNode }) {
+type IntentKey = (typeof INTENTS)[number]["key"];
+
+/** One segment of the search bar: icon, bold label, and a borderless select underneath. */
+function Field({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
   return (
-    <label className="relative block min-w-0 cursor-pointer px-5 py-2.5 transition hover:bg-canvas/70 focus-within:bg-canvas/70">
-      <span className="block text-[0.66rem] font-semibold uppercase tracking-[0.16em] text-muted">{label}</span>
-      {children}
-      <ChevronDown className="pointer-events-none absolute bottom-3.5 right-4 h-4 w-4 text-muted" strokeWidth={1.8} />
+    <label className="group/field relative flex min-w-0 cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 transition hover:bg-canvas focus-within:bg-canvas lg:after:absolute lg:after:-right-0.5 lg:after:top-1/4 lg:after:h-1/2 lg:after:w-px lg:after:bg-line">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-green-50 text-brand-green transition group-hover/field:bg-brand-green group-hover/field:text-white">
+        <Icon className="h-[1.05rem] w-[1.05rem]" strokeWidth={1.8} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[0.8rem] font-semibold text-ink">{label}</span>
+        {children}
+      </span>
+      <ChevronDown className="pointer-events-none absolute bottom-4 right-4 h-3.5 w-3.5 text-muted" strokeWidth={2} />
     </label>
   );
 }
 
-const selectCls = "mt-0.5 w-full cursor-pointer appearance-none truncate bg-transparent pr-6 text-[0.95rem] font-medium text-ink outline-none";
+const selectCls = "w-full cursor-pointer appearance-none truncate bg-transparent pr-5 text-[0.85rem] text-muted outline-none";
 
 export function HeroSearch() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("buy");
-  const current = TABS.find((t) => t.key === tab)!;
-  const budgets = tab === "rent" ? BUDGETS_RENT : BUDGETS_SALE;
-  const types = tab === "commercial" ? PROPERTY_TYPES.filter((t) => t.segment === "commercial") : PROPERTY_TYPES;
+  const [intent, setIntent] = useState<IntentKey>("buy");
+  const current = INTENTS.find((t) => t.key === intent)!;
+  const budgets = intent === "rent" ? BUDGETS_RENT : BUDGETS_SALE;
+  const types = intent === "commercial" ? PROPERTY_TYPES.filter((t) => t.segment === "commercial") : PROPERTY_TYPES;
 
   return (
-    <div className="glass rounded-[1.75rem] p-1.5">
-      <div role="tablist" aria-label="What are you looking for" className="no-scrollbar flex gap-1 overflow-x-auto px-1 pb-1.5 pt-0.5">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[0.82rem] font-semibold transition ${
-              tab === t.key ? "bg-brand-green-900 text-white shadow-sm" : "text-ink-soft hover:bg-white/70 hover:text-ink"
-            }`}
-          >
-            <t.icon className="h-3.5 w-3.5" strokeWidth={1.9} />
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <form
+      action="/projects"
+      method="get"
+      className="grid grid-cols-1 gap-1 rounded-[1.6rem] border border-line bg-paper p-2 shadow-pop sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] lg:items-center"
+    >
+      {Object.entries(current.hidden).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
 
-      <form
-        action="/projects"
-        method="get"
-        className="grid grid-cols-1 divide-y divide-line-soft overflow-hidden rounded-[1.35rem] bg-white shadow-card sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:divide-x sm:divide-y-0"
+      <Field icon={Home} label="Looking to">
+        <select aria-label="Looking to" className={selectCls} value={intent} onChange={(e) => setIntent(e.target.value as IntentKey)}>
+          {INTENTS.map((t) => (
+            <option key={t.key} value={t.key}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field icon={MapPin} label="Where?">
+        <select name="area" className={selectCls} defaultValue="">
+          <option value="">All areas, Mira Road → Dahanu</option>
+          {AREA_ZONES.map((z) => (
+            <optgroup key={z.zone} label={z.zone}>
+              {z.areas.map((a) => (
+                <option key={a} value={slugify(a)}>
+                  {a}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </Field>
+
+      <Field icon={Building2} label="Property type">
+        <select name="type" className={selectCls} defaultValue="" key={`type-${intent}`}>
+          <option value="">Any type</option>
+          {types.map((t) => (
+            <option key={t.slug} value={t.slug}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field icon={Wallet} label="Budget">
+        <select name="budget" className={selectCls} defaultValue="" key={`budget-${intent}`}>
+          <option value="">Any budget</option>
+          {budgets.map((b) => (
+            <option key={b.value} value={b.value}>
+              {b.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <button
+        type="submit"
+        className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-brand-green-900 px-8 text-[0.95rem] font-semibold text-white transition hover:bg-brand-green focus-visible:bg-brand-green sm:col-span-2 lg:col-span-1 lg:ml-1"
       >
-        {Object.entries(current.hidden).map(([k, v]) => (
-          <input key={k} type="hidden" name={k} value={v} />
-        ))}
-        <Field label="Location">
-          <select name="area" className={selectCls} defaultValue="">
-            <option value="">All areas, Mira Road → Dahanu</option>
-            {AREA_ZONES.map((z) => (
-              <optgroup key={z.zone} label={z.zone}>
-                {z.areas.map((a) => (
-                  <option key={a} value={slugify(a)}>
-                    {a}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </Field>
-        <Field label="Property type">
-          <select name="type" className={selectCls} defaultValue="">
-            <option value="">Any type</option>
-            {types.map((t) => (
-              <option key={t.slug} value={t.slug}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Budget">
-          <select name="budget" className={selectCls} defaultValue="" key={tab}>
-            <option value="">Any budget</option>
-            {budgets.map((b) => (
-              <option key={b.value} value={b.value}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <div className="p-1.5 !border-0 sm:pl-0">
-          <button
-            type="submit"
-            className="flex h-full min-h-12 w-full items-center justify-center gap-2 rounded-[1.1rem] bg-brand-green-900 px-6 text-[0.95rem] font-semibold text-white transition hover:bg-brand-green focus-visible:bg-brand-green sm:rounded-full"
-          >
-            <Search className="h-4 w-4" strokeWidth={2.2} />
-            Search
-          </button>
-        </div>
-      </form>
-    </div>
+        <Search className="h-4 w-4" strokeWidth={2.2} />
+        Search
+      </button>
+    </form>
   );
 }

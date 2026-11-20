@@ -298,23 +298,6 @@
   }
 }
 
-/* On pages with an overlay hero, the header bar stays see-through until the page scrolls.
-   Unlayered on purpose so it wins over the bar's Tailwind utilities. */
-html:has([data-hero-overlay]):not([data-scrolled]) .site-header-bar {
-  background-color: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-/* …and its logo and menu button turn light over the dark photo (but not inside the mobile drawer). */
-html:has([data-hero-overlay]):not([data-scrolled]) .site-header-bar :is(.logo-word, .menu-trigger):not([role="dialog"] *) {
-  color: #fff;
-}
-html:has([data-hero-overlay]):not([data-scrolled]) .site-header-bar .logo-sub:not([role="dialog"] *) {
-  color: rgb(255 255 255 / 0.75);
-}
-
 @keyframes loader-spin {
   to { transform: rotate(360deg); }
 }
